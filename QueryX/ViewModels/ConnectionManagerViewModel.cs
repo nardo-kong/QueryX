@@ -8,16 +8,20 @@ using System.Linq;
 using System.Windows.Input;
 using System.Threading.Tasks;
 using System.Diagnostics; // For async Task
+using System.Security.Cryptography;
 
 namespace QueryX.ViewModels
 {
     public class ConnectionManagerViewModel : ViewModelBase
     {
         private readonly DatabaseService _databaseService;
+        private readonly EncryptionService _encryptionService;
+
         private DatabaseConnectionInfo? _selectedConnection;
         private DatabaseConnectionInfo? _currentEditConnection; // Connection being edited/added
         private bool _isEditing = false; // Controls enabled state of the form
         private string _statusMessage = string.Empty;
+        private bool _isBusy; // Add a backing field for IsBusy
 
         // List of connections displayed in the ListBox
         public ObservableCollection<DatabaseConnectionInfo> Connections { get; private set; }
@@ -184,13 +188,22 @@ namespace QueryX.ViewModels
         public ICommand SaveCommand { get; }
         public ICommand CancelEditCommand { get; }
         public ICommand TestCommand { get; }
+
+        // Add a public property for IsBusy
+        public bool IsBusy
+        {
+            get => _isBusy;
+            set => SetProperty(ref _isBusy, value); // Use SetProperty to notify changes
+        }
         // public ICommand CloseWindowCommand { get; } // Optional: For explicit close button
 
 
         // Constructor
-        public ConnectionManagerViewModel(ObservableCollection<DatabaseConnectionInfo> existingConnections, DatabaseService databaseService)
+        public ConnectionManagerViewModel(ObservableCollection<DatabaseConnectionInfo> existingConnections, 
+            DatabaseService databaseService, EncryptionService encryptionService)
         {
             _databaseService = databaseService ?? throw new ArgumentNullException(nameof(databaseService));
+            _encryptionService = encryptionService ?? throw new ArgumentNullException(nameof(encryptionService));
             Connections = existingConnections;
 
             // Initialize Commands
@@ -234,12 +247,12 @@ namespace QueryX.ViewModels
                     DatabaseName = connectionToEdit.DatabaseName,
                     UseWindowsAuth = connectionToEdit.UseWindowsAuth,
                     UserName = connectionToEdit.UserName,
-                    Password = connectionToEdit.Password // Copying password reference (handle securely later)
+                    //Password = connectionToEdit.Password // Copying password reference (handle securely later)
+                    EncryptedPassword = connectionToEdit.EncryptedPassword, // Copy encrypted password
                 };
                 IsEditing = true;
             }
         }
-
 
         private bool CanExecuteRemove(object? parameter) => SelectedConnection != null; // Can only remove if an item is selected
         private void ExecuteRemove(object? parameter)
@@ -264,22 +277,13 @@ namespace QueryX.ViewModels
         {
             if (CurrentEditConnection == null) return;
 
+            string? plainPasswordFromBox = null;
             // --- Get Password from Parameter ---
             if (parameter is System.Windows.Controls.PasswordBox pwdBox) // Check if parameter is a PasswordBox
             {
                 // Assign the password just before saving/validation
-                CurrentEditConnection.Password = pwdBox.Password;
-            }
-            else
-            {
-                // Handle case where parameter is not passed correctly (optional, for robustness)
-                // Maybe fallback to existing password if editing? For adding, it should be there.
-                // For now, we assume it's passed correctly if needed.
-                if (!CurrentEditConnection.UseWindowsAuth && string.IsNullOrEmpty(CurrentEditConnection.Password))
-                {
-                    // If password wasn't retrieved and is needed, show error or handle
-                    System.Diagnostics.Debug.WriteLine("Warning: PasswordBox parameter was not received correctly in ExecuteSave.");
-                }
+                //CurrentEditConnection.Password = pwdBox.Password;
+                plainPasswordFromBox = pwdBox.Password;
             }
 
             // Basic Validation (Example)
@@ -293,11 +297,45 @@ namespace QueryX.ViewModels
                 StatusMessage = "Error: Server/Host/File Path cannot be empty.";
                 return;
             }
+            /*
             if (!CurrentEditConnection.UseWindowsAuth && string.IsNullOrWhiteSpace(CurrentEditConnection.UserName))
             {
                 StatusMessage = "Error: User Name is required if not using Windows Authentication.";
                 return;
             }
+            */
+            if (!CurrentEditConnection.UseWindowsAuth)
+            {
+                // If not Windows Auth, a password might be needed or might have been entered
+                if (!string.IsNullOrEmpty(plainPasswordFromBox))
+                {
+                    try
+                    {
+                        CurrentEditConnection.EncryptedPassword = _encryptionService.EncryptString(plainPasswordFromBox);
+                    }
+                    catch (CryptographicException) { StatusMessage = "Error: Failed to secure password."; return; }
+                }
+                else if (CurrentEditConnection.EncryptedPassword == null) // No existing encrypted pass, no new pass entered
+                {
+                    StatusMessage = "Error: Password is required if not using Windows Authentication.";
+                    return;
+                }
+                // If plainPasswordFromBox is empty but EncryptedPassword exists, we keep the existing one.
+                if (string.IsNullOrWhiteSpace(CurrentEditConnection.UserName))
+                {
+                    StatusMessage = "Error: User Name is required if not using Windows Authentication.";
+                    return;
+                }
+            }
+            else // Using Windows Auth
+            {
+                CurrentEditConnection.EncryptedPassword = null; // Clear any encrypted password
+                CurrentEditConnection.UserName = null; // Often good to clear username too
+            }
+
+            // Clear any transient decrypted password (should not be set here anyway)
+            CurrentEditConnection.DecryptedPasswordForCurrentOperation = null;
+
             // Check if it's a new connection (by ID) or an existing one being updated
             var existing = Connections.FirstOrDefault(c => c.Id == CurrentEditConnection.Id);
             if (existing != null)
@@ -330,20 +368,63 @@ namespace QueryX.ViewModels
         {
             if (CurrentEditConnection == null) return;
 
+            string? plainPasswordFromBox = null;
             // --- Get Password from Parameter ---
             if (parameter is System.Windows.Controls.PasswordBox pwdBox)
             {
                 // Assign the password just before testing
-                CurrentEditConnection.Password = pwdBox.Password;
+                plainPasswordFromBox = pwdBox.Password;
             }
-            else
+
+            // We'll use the one from the PasswordBox if provided, otherwise try to decrypt the stored one.
+            string? passwordForTest = null;
+            if (!CurrentEditConnection.UseWindowsAuth)
             {
-                System.Diagnostics.Debug.WriteLine("Warning: PasswordBox parameter was not received correctly in ExecuteTestConnectionAsync.");
+                if (!string.IsNullOrEmpty(plainPasswordFromBox))
+                {
+                    passwordForTest = plainPasswordFromBox;
+                }
+                else if (CurrentEditConnection.EncryptedPassword != null)
+                {
+                    try
+                    {
+                        passwordForTest = _encryptionService.DecryptToString(CurrentEditConnection.EncryptedPassword);
+                    }
+                    catch (CryptographicException) { StatusMessage = "Error: Failed to read stored password for test."; IsBusy = false; return; }
+
+                    if (passwordForTest == null) // Decryption failed or returned null
+                    {
+                        StatusMessage = "Error: Could not decrypt stored password for testing. Please re-enter.";
+                        IsBusy = false;
+                        return;
+                    }
+                }
+                else // No password in box, no encrypted password stored, but needed
+                {
+                    StatusMessage = "Error: Password required for testing this connection type.";
+                    IsBusy = false;
+                    return;
+                }
             }
 
             StatusMessage = "Testing connection...";
-            var (isSuccess, message) = await _databaseService.TestConnectionAsync(CurrentEditConnection);
+            IsBusy = true;
+
+            // Use a temporary copy or set DecryptedPasswordForCurrentOperation carefully
+            var tempConnectionInfoForTest = new DatabaseConnectionInfo // Create a temp DTO for testing
+            {
+                // Copy all relevant properties from CurrentEditConnection
+                DbType = CurrentEditConnection.DbType,
+                Server = CurrentEditConnection.Server,
+                DatabaseName = CurrentEditConnection.DatabaseName,
+                UseWindowsAuth = CurrentEditConnection.UseWindowsAuth,
+                UserName = CurrentEditConnection.UseWindowsAuth ? null : CurrentEditConnection.UserName,
+                DecryptedPasswordForCurrentOperation = passwordForTest // Use the resolved plain text password
+            };
+
+            var (isSuccess, message) = await _databaseService.TestConnectionAsync(tempConnectionInfoForTest);
             StatusMessage = message; // Display result from DatabaseService
+            IsBusy = false;
 
             // Optionally show a MessageBox as well
             // MessageBox.Show(message, "Connection Test Result", MessageBoxButton.OK,

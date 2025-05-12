@@ -7,6 +7,7 @@ using System.Diagnostics; // For Stopwatch
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
+using System.Security.Cryptography;
 // Add specific provider using statements
 using System.Data.SqlClient;
 using Npgsql;
@@ -20,11 +21,13 @@ namespace QueryX.Services // Ensure namespace matches
     {
         private readonly DatabaseService _databaseService;
         private readonly SqlParser _sqlParser; // Optional, if parameter validation is desired here
+        private readonly EncryptionService _encryptionService;
 
-        public QueryExecutor(DatabaseService databaseService, SqlParser sqlParser)
+        public QueryExecutor(DatabaseService databaseService, SqlParser sqlParser, EncryptionService encryptionService)
         {
             _databaseService = databaseService ?? throw new ArgumentNullException(nameof(databaseService));
             _sqlParser = sqlParser ?? throw new ArgumentNullException(nameof(sqlParser));
+            _encryptionService = encryptionService ?? throw new ArgumentNullException(nameof(encryptionService));
         }
 
         /// <summary>
@@ -47,6 +50,32 @@ namespace QueryX.Services // Ensure namespace matches
             DataTable? lastResultTable = null;
             int totalRecordsAffected = 0;
             bool isSelectQuery = false;
+
+            // --- Decrypt password if needed ---
+            if (!connectionInfo.UseWindowsAuth)
+            {
+                if (connectionInfo.EncryptedPassword != null)
+                {
+                    try
+                    {
+                        connectionInfo.DecryptedPasswordForCurrentOperation =
+                            _encryptionService.DecryptToString(connectionInfo.EncryptedPassword);
+                        if (connectionInfo.DecryptedPasswordForCurrentOperation == null)
+                        {
+                            return new QueryResult("Error: Failed to decrypt stored password.");
+                        }
+                    }
+                    catch (CryptographicException ex)
+                    {
+                        System.Diagnostics.Debug.WriteLine($"Password decryption failed: {ex.Message}");
+                        return new QueryResult("Error: Password decryption failed.");
+                    }
+                }
+                else // Not Windows Auth, but no encrypted password stored.
+                {
+                    return new QueryResult("Error: Password required for this connection but not configured.");
+                }
+            }
 
             try
             {
@@ -163,6 +192,11 @@ namespace QueryX.Services // Ensure namespace matches
             }
             finally
             {
+                // Clear the decrypted password immediately after the operation (connection attempt)
+                if (connectionInfo != null)
+                {
+                    connectionInfo.DecryptedPasswordForCurrentOperation = null;
+                }
                 // Ensure connection is closed and disposed
                 if (connection != null)
                 {

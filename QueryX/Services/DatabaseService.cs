@@ -30,7 +30,8 @@ namespace QueryX.Services // Ensure namespace matches your project
                             InitialCatalog = connectionInfo.DatabaseName,
                             IntegratedSecurity = connectionInfo.UseWindowsAuth,
                             UserID = connectionInfo.UseWindowsAuth ? "" : connectionInfo.UserName,
-                            Password = connectionInfo.UseWindowsAuth ? "" : connectionInfo.Password // TODO: Decrypt password if stored encrypted
+                            //Password = connectionInfo.UseWindowsAuth ? "" : connectionInfo.Password
+                            Password = connectionInfo.UseWindowsAuth ? "" : connectionInfo.DecryptedPasswordForCurrentOperation
                         };
                         // sqlBuilder.Encrypt = true; // Consider adding security options
                         // sqlBuilder.TrustServerCertificate = true; // Use appropriately
@@ -53,7 +54,8 @@ namespace QueryX.Services // Ensure namespace matches your project
                         else
                         {
                             npgsqlBuilder.Username = connectionInfo.UserName;
-                            npgsqlBuilder.Password = connectionInfo.Password; // TODO: Decrypt  
+                            //npgsqlBuilder.Password = connectionInfo.Password;
+                            npgsqlBuilder.Password = connectionInfo.DecryptedPasswordForCurrentOperation;
                         }
                         return npgsqlBuilder.ConnectionString;
 
@@ -63,7 +65,8 @@ namespace QueryX.Services // Ensure namespace matches your project
                             Server = connectionInfo.Server,
                             Database = connectionInfo.DatabaseName,
                             UserID = connectionInfo.UserName,
-                            Password = connectionInfo.Password, // TODO: Decrypt
+                            //Password = connectionInfo.Password,
+                            Password = connectionInfo.DecryptedPasswordForCurrentOperation,
                             IntegratedSecurity = connectionInfo.UseWindowsAuth, // May require specific connector/server config
                                                                                 // PersistSecurityInfo = false, // Good practice
                                                                                 // SslMode = MySqlSslMode.Preferred // Consider SSL
@@ -76,6 +79,7 @@ namespace QueryX.Services // Ensure namespace matches your project
                             DataSource = connectionInfo.Server, // Server property holds the file path for SQLite
                             Mode = SqliteOpenMode.ReadWriteCreate // Default mode, adjust if needed
                             // Password = connectionInfo.Password // If using encrypted SQLite
+                            //Password = connectionInfo.DecryptedPasswordForCurrentOperation // If using encrypted SQLite
                         };
                         return sqliteBuilder.ConnectionString;
 
@@ -86,7 +90,8 @@ namespace QueryX.Services // Ensure namespace matches your project
                         {
                             DataSource = connectionInfo.Server, // Often in format "host:port/service_name" or using TNSNames
                             UserID = connectionInfo.UserName,
-                            Password = connectionInfo.Password // TODO: Decrypt
+                            //Password = connectionInfo.Password
+                            Password = connectionInfo.DecryptedPasswordForCurrentOperation
                             // IntegratedSecurity = connectionInfo.UseWindowsAuth // Check Oracle syntax for this
                         };
                         return oraBuilder.ConnectionString;

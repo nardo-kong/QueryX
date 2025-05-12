@@ -17,6 +17,7 @@ namespace QueryX.ViewModels // Ensure namespace matches your project
         private readonly SqlParser _sqlParser; // <-- Add SqlParser
         private readonly QueryExecutor _queryExecutor; // <-- Add QueryExecutor
         private readonly ExportService _exportService;
+        private readonly EncryptionService _encryptionService;
         private AppConfiguration _appConfig; // Holds the loaded config data
 
         // Collections exposed to the View for binding
@@ -80,14 +81,16 @@ namespace QueryX.ViewModels // Ensure namespace matches your project
         public ICommand LoadConfigurationCommand { get; }
         public ICommand SaveConfigurationCommand { get; }
         public ICommand OpenConnectionManagerCommand { get; }
+        public ICommand OpenQueryManagerCommand { get; }
         // Add more commands later (Add Connection, Remove Query, Execute Query etc.)
 
         public MainViewModel()
         {
             _configurationManager = new ConfigurationManager();
             _databaseService = new DatabaseService();
+            _encryptionService = new EncryptionService();
             _sqlParser = new SqlParser(); // <-- Instantiate SqlParser
-            _queryExecutor = new QueryExecutor(_databaseService, _sqlParser); // <-- Instantiate QueryExecutor
+            _queryExecutor = new QueryExecutor(_databaseService, _sqlParser, _encryptionService); // <-- Instantiate QueryExecutor
             _exportService = new ExportService();
 
             _appConfig = new AppConfiguration(); // Start with empty config
@@ -100,6 +103,7 @@ namespace QueryX.ViewModels // Ensure namespace matches your project
             LoadConfigurationCommand = new RelayCommand(ExecuteLoadConfiguration);
             SaveConfigurationCommand = new RelayCommand(ExecuteSaveConfiguration, CanExecuteSaveConfiguration); // Add CanExecute logic if needed
             OpenConnectionManagerCommand = new RelayCommand(ExecuteOpenConnectionManager);
+            OpenQueryManagerCommand = new RelayCommand(ExecuteOpenQueryManager);
 
             // Load configuration immediately on creation (alternative: call from App.xaml.cs)
             // ExecuteLoadConfiguration(null); // Commented out - will call from App.xaml.cs for better control
@@ -160,7 +164,8 @@ namespace QueryX.ViewModels // Ensure namespace matches your project
         private void ExecuteOpenConnectionManager(object? parameter)
         {
             // Create the ViewModel for the Connection Manager, passing existing connections and the service
-            var connectionManagerViewModel = new ConnectionManagerViewModel(this.Connections, _databaseService);
+            var connectionManagerViewModel = new ConnectionManagerViewModel(this.Connections, 
+                _databaseService, _encryptionService);
 
             // Create the View (Window)
             var connectionManagerView = new ConnectionManagerView();
@@ -208,7 +213,26 @@ namespace QueryX.ViewModels // Ensure namespace matches your project
             // Refresh the list in MainViewModel in case the underlying collection was replaced (if not using ObservableCollection directly)
             // Not strictly necessary here as ConnectionManagerViewModel modifies the ObservableCollection instance passed to it.
         }
-        
+
+        private void ExecuteOpenQueryManager(object? parameter)
+        {
+            // Pass the shared Queries collection and SqlParser (optional)
+            var queryManagerViewModel = new QueryManagerViewModel(this.Queries /*, _sqlParser */);
+            var queryManagerView = new QueryManagerView
+            {
+                DataContext = queryManagerViewModel
+            };
+
+            queryManagerView.ShowDialog(); // Show as a dialog
+
+            // After the dialog closes, changes made to 'this.Queries' (because it's shared)
+            // are ready to be saved.
+            if (SaveConfigurationCommand.CanExecute(null))
+            {
+                SaveConfigurationCommand.Execute(null);
+            }
+        }
+
         // --- Helper methods (example for later use) ---
         public void AddConnection(DatabaseConnectionInfo newConnection)
         {
@@ -253,21 +277,22 @@ namespace QueryX.ViewModels // Ensure namespace matches your project
 
                 ActiveConnectionForQuery = defaultConnection; // Update the active connection
 
-                if (defaultConnection != null) // Only create execution context if a connection can be determined
+                if (ActiveConnectionForQuery != null) // Only create execution context if a connection can be determined
                 {
                     CurrentQueryExecution = new QueryExecutionViewModel(
                         SelectedQuery,
                         suitableConnections, // Pass the list of suitable connections
-                        defaultConnection,   // Pass the default selected one
+                        ActiveConnectionForQuery,   // Pass the default selected one
                         _queryExecutor,
                         _exportService,
-                        _databaseService  // Pass DatabaseService for "Test Connection" in QueryExecutionViewModel
+                        _databaseService,  // Pass DatabaseService for "Test Connection" in QueryExecutionViewModel
+                        _encryptionService
                         );
                 }
                 else
                 {
                     CurrentQueryExecution = null; // No suitable connection found
-                    System.Diagnostics.Debug.WriteLine($"No suitable connection found for query '{SelectedQuery.Name}'.");
+                    Debug.WriteLine($"No suitable connection found for query '{SelectedQuery.Name}'.");
                 }
             }
             else

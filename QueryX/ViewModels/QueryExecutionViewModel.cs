@@ -9,6 +9,7 @@ using System.Threading; // For CancellationTokenSource
 using System.Threading.Tasks; // For Task
 using System.Data; // For DataTable check
 using System.IO;
+using System.Security.Cryptography;
 using Microsoft.Win32; // For SaveFileDialog
 
 namespace QueryX.ViewModels // Ensure namespace matches
@@ -20,11 +21,14 @@ namespace QueryX.ViewModels // Ensure namespace matches
         private readonly QueryExecutor _queryExecutor;
         private readonly ExportService _exportService;
         private readonly DatabaseService _databaseService;
+        private readonly EncryptionService _encryptionService;
+
         private CancellationTokenSource? _cancellationTokenSource; // To allow cancellation
 
         // --- NEW Properties for Connection Selection ---
         public ObservableCollection<DatabaseConnectionInfo> AvailableConnectionsForExecution { get; }
         private DatabaseConnectionInfo? _selectedConnectionForExecution;
+        private string _connectionTestStatusMessage = "Untested";
         public DatabaseConnectionInfo? SelectedConnectionForExecution
         {
             get => _selectedConnectionForExecution;
@@ -32,12 +36,30 @@ namespace QueryX.ViewModels // Ensure namespace matches
             {
                 if (SetProperty(ref _selectedConnectionForExecution, value))
                 {
-                    StatusMessage = $"Connection set to: {value?.ConnectionName ?? "None"}";
+                    ConnectionTestStatusMessage = "Untested";
+                    if (value != null)
+                    {
+                        StatusMessage = $"Using '{value.ConnectionName}'. Parameters loaded.";
+                    }
+                    else if (AvailableConnectionsForExecution.Any())
+                    {
+                        StatusMessage = "Please select a database connection for this query.";
+                    }
+                    else
+                    {
+                        StatusMessage = "No suitable database connection available for this query.";
+                    }
+
                     // Re-validate CanExecute for ExecuteQueryCommand if it depends on a connection being selected
                     ((RelayCommand)ExecuteQueryCommand).RaiseCanExecuteChanged();
                     ((RelayCommand)TestSelectedConnectionCommand).RaiseCanExecuteChanged();
                 }
             }
+        }
+        public string ConnectionTestStatusMessage
+        {
+            get => _connectionTestStatusMessage;
+            private set => SetProperty(ref _connectionTestStatusMessage, value);
         }
 
         private ObservableCollection<ParameterInputViewModel> _parameters = new ObservableCollection<ParameterInputViewModel>();
@@ -102,13 +124,18 @@ namespace QueryX.ViewModels // Ensure namespace matches
         public ICommand TestSelectedConnectionCommand { get; }
 
         // Constructor
-        public QueryExecutionViewModel(QueryDefinition queryDefinition, IEnumerable<DatabaseConnectionInfo> availableConnections, DatabaseConnectionInfo? initialConnection, QueryExecutor queryExecutor, ExportService exportService, DatabaseService databaseService)
+        public QueryExecutionViewModel(QueryDefinition queryDefinition, 
+            IEnumerable<DatabaseConnectionInfo> availableConnections, 
+            DatabaseConnectionInfo? initialConnection, QueryExecutor queryExecutor, 
+            ExportService exportService, DatabaseService databaseService,
+            EncryptionService encryptionService)
         {
             _queryDefinition = queryDefinition ?? throw new ArgumentNullException(nameof(queryDefinition));
             //_connectionInfo = connectionInfo ?? throw new ArgumentNullException(nameof(connectionInfo));
             _queryExecutor = queryExecutor ?? throw new ArgumentNullException(nameof(queryExecutor));
             _exportService = exportService ?? throw new ArgumentNullException(nameof(exportService));
             _databaseService = databaseService ?? throw new ArgumentNullException(nameof(databaseService));
+            _encryptionService = encryptionService ?? throw new ArgumentNullException(nameof(encryptionService));
 
             ExecuteQueryCommand = new RelayCommand(async (p) => await ExecuteQueryAsync(), CanExecuteQuery);
             CancelQueryCommand = new RelayCommand(ExecuteCancelQuery, CanCancelQuery);
@@ -323,7 +350,52 @@ namespace QueryX.ViewModels // Ensure namespace matches
             IsBusy = true;
             string originalStatus = StatusMessage; // Store original status
             StatusMessage = $"Testing connection to '{SelectedConnectionForExecution.ConnectionName}'...";
-            var (isSuccess, message) = await _databaseService.TestConnectionAsync(SelectedConnectionForExecution);
+            ConnectionTestStatusMessage = "Testing...";
+
+            // --- Temporary Decryption Logic for Testing ---
+            bool passwordPreparationOk = true;
+            if (!SelectedConnectionForExecution.UseWindowsAuth)
+            {
+                if (SelectedConnectionForExecution.EncryptedPassword != null)
+                {
+                    try
+                    {
+                        SelectedConnectionForExecution.DecryptedPasswordForCurrentOperation =
+                            _encryptionService.DecryptToString(SelectedConnectionForExecution.EncryptedPassword);
+
+                        if (SelectedConnectionForExecution.DecryptedPasswordForCurrentOperation == null)
+                        {
+                            // Decryption failed (e.g., different user/machine or corrupted data)
+                            ConnectionTestStatusMessage = "Failed: Decrypt error";
+                            StatusMessage = $"Test for '{SelectedConnectionForExecution.ConnectionName}': Failed to decrypt stored password.";
+                            passwordPreparationOk = false;
+                        }
+                    }
+                    catch (CryptographicException ex)
+                    {
+                        System.Diagnostics.Debug.WriteLine($"Test Connection: Password decryption failed: {ex.Message}");
+                        ConnectionTestStatusMessage = "Failed: Decrypt error";
+                        StatusMessage = $"Test for '{SelectedConnectionForExecution.ConnectionName}': Password decryption error.";
+                        passwordPreparationOk = false;
+                    }
+                }
+                else // Not Windows Auth, but no encrypted password is stored.
+                {
+                    // This connection requires a password, but none is configured.
+                    // The BuildConnectionString in DatabaseService will likely fail or use an empty password.
+                    // No explicit error here, let TestConnectionAsync report the connection failure.
+                    // For clarity, we could set a message, but TestConnectionAsync will give more specific DB errors.
+                    System.Diagnostics.Debug.WriteLine($"Test Connection: No encrypted password for '{SelectedConnectionForExecution.ConnectionName}' which requires password auth.");
+                }
+            }
+            var (isSuccess, message) = (false, "Password preparation failed."); // Default to failure
+
+            if (passwordPreparationOk)
+            {
+                (isSuccess, message) = await _databaseService.TestConnectionAsync(SelectedConnectionForExecution);
+                ConnectionTestStatusMessage = isSuccess ? "OK" : $"Failed: {message.Split('\n')[0]}"; // Concise error
+            }
+
             StatusMessage = message; // Display test result
 
             // You might want to revert to originalStatus after a few seconds or if successful
@@ -331,6 +403,12 @@ namespace QueryX.ViewModels // Ensure namespace matches
             // Consider a timed revert:
             // await Task.Delay(3000);
             // if (StatusMessage == message) StatusMessage = originalStatus; // Revert if status hasn't changed further
+            
+            // --- Clear Decrypted Password ---
+            if (SelectedConnectionForExecution != null)
+            {
+                SelectedConnectionForExecution.DecryptedPasswordForCurrentOperation = null;
+            }
 
             IsBusy = false;
         }
