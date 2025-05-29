@@ -44,6 +44,8 @@ namespace QueryX.Services // Ensure namespace matches
             Dictionary<string, object?> parameterValues,
             CancellationToken cancellationToken = default)
         {
+            var overallResult = new QueryResult(); // Start with a new, successful result object
+
             Stopwatch stopwatch = Stopwatch.StartNew();
             DbConnection? connection = null;
             DbTransaction? transaction = null; // Optional: Handle transactions if needed across multiple statements
@@ -92,8 +94,9 @@ namespace QueryX.Services // Ensure namespace matches
                 // Optional: Start transaction if multiple SQL statements need atomicity
                 // transaction = await connection.BeginTransactionAsync(cancellationToken);
 
-                foreach (string sqlTemplate in queryDefinition.SqlTemplates)
+                foreach (SqlTemplateEditable sqlTemplateWrapper in queryDefinition.SqlTemplates)
                 {
+                    string sqlTemplate = sqlTemplateWrapper.SqlText; 
                     if (string.IsNullOrWhiteSpace(sqlTemplate)) continue;
                     cancellationToken.ThrowIfCancellationRequested(); // Check for cancellation before each statement
 
@@ -139,7 +142,7 @@ namespace QueryX.Services // Ensure namespace matches
 
                         // --- Execute Command ---
                         // Determine if it's likely a SELECT statement (basic check)
-                        isSelectQuery = sqlTemplate.TrimStart().StartsWith("SELECT", StringComparison.OrdinalIgnoreCase);
+                        isSelectQuery = IsSelectLikeQuery(sqlTemplate);
                         Debug.WriteLine($"Executing SQL: {sqlTemplate} with parameters: {string.Join(", ", command.Parameters.Cast<DbParameter>().Select(p => $"{p.ParameterName}={p.Value}"))}");
 
                         if (isSelectQuery)
@@ -148,7 +151,9 @@ namespace QueryX.Services // Ensure namespace matches
                             {
                                 var dataTable = new DataTable();
                                 dataTable.Load(reader); // Load reader directly into DataTable
+                                dataTable.TableName = $"Result Set {overallResult.ResultTables.Count + 1}";
                                 lastResultTable = dataTable; // Store the result table (overwrite previous if multiple SELECTs)
+                                overallResult.ResultTables.Add(dataTable);
                             }
                             totalRecordsAffected = 0; // Reset records affected for SELECT
                         }
@@ -163,8 +168,10 @@ namespace QueryX.Services // Ensure namespace matches
                 // Optional: Commit transaction if used
                 // if (transaction != null) await transaction.CommitAsync(cancellationToken);
 
-                stopwatch.Stop();
+                overallResult.RecordsAffected = totalRecordsAffected;
+                //stopwatch.Stop();
 
+                /*
                 // Return appropriate result based on last executed statement type
                 if (lastResultTable != null)
                 {
@@ -174,21 +181,31 @@ namespace QueryX.Services // Ensure namespace matches
                 {
                     return new QueryResult(totalRecordsAffected, stopwatch.Elapsed);
                 }
+                */
             }
             catch (OperationCanceledException)
             {
+                /*
                 stopwatch.Stop();
                 // Optional: Rollback transaction if used
                 // if (transaction != null) await transaction.RollbackAsync();
                 return new QueryResult("Query execution was cancelled.");
+                */
+                overallResult.IsSuccess = false;
+                overallResult.ErrorMessage = "Query execution was cancelled.";
             }
             catch (Exception ex)
             {
+                /*
                 stopwatch.Stop();
                 Debug.WriteLine($"Query execution failed: {ex}");
                 // Optional: Rollback transaction if used
-                // if (transaction != null) try { await transaction.RollbackAsync(); } catch { /* ignore rollback error */ }
+                // if (transaction != null) try { await transaction.RollbackAsync(); } catch {  ignore rollback error  }
                 return new QueryResult($"Execution failed: {ex.Message}");
+                */
+                overallResult.IsSuccess = false;
+                overallResult.ErrorMessage = $"Execution failed: {ex.Message}";
+                Debug.WriteLine($"Query execution failed: {ex}");
             }
             finally
             {
@@ -209,6 +226,9 @@ namespace QueryX.Services // Ensure namespace matches
                     await transaction.DisposeAsync();
                 }
             }
+            stopwatch.Stop();
+            overallResult.Duration = stopwatch.Elapsed;
+            return overallResult;
         }
 
         // Helper to create DbConnection based on type
@@ -239,5 +259,28 @@ namespace QueryX.Services // Ensure namespace matches
                 default: return DbType.Object; // Fallback
             }
         }
+
+        // Helper method to determine if the SQL is a SELECT-like query
+        private static bool IsSelectLikeQuery(string sql)
+        {
+            if (string.IsNullOrWhiteSpace(sql)) return false;
+
+            // 提取前100个字符用于判断，避免处理超长字符串
+            var trimmed = sql.TrimStart().Substring(0, Math.Min(100, sql.TrimStart().Length)).ToUpperInvariant();
+
+            // 检查是否以 SELECT 或 WITH 开头，并尝试确认是否是查询语句
+            if (trimmed.StartsWith("SELECT"))
+                return true;
+
+            if (trimmed.StartsWith("WITH"))
+            {
+                // 查找第一个非 CTE 的关键语句
+                // 简单判断是否包含SELECT（未涵盖全部SQL语法边缘情况）
+                return trimmed.Contains("SELECT");
+            }
+
+            return false;
+        }
+
     }
 }

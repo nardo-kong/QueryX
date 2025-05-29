@@ -18,29 +18,14 @@ namespace QueryX.ViewModels // Ensure namespace matches your project
         private readonly QueryExecutor _queryExecutor; // <-- Add QueryExecutor
         private readonly ExportService _exportService;
         private readonly EncryptionService _encryptionService;
+        private readonly SqlValidationService _sqlValidationService;
+
         private AppConfiguration _appConfig; // Holds the loaded config data
 
         // Collections exposed to the View for binding
         // Use ObservableCollection<T> so the UI updates automatically when items are added/removed
         public ObservableCollection<DatabaseConnectionInfo> Connections { get; private set; }
         public ObservableCollection<QueryDefinition> Queries { get; private set; }
-
-        /*
-        // Properties to hold the selected item from the lists (optional for now, but useful later)
-        private DatabaseConnectionInfo? _selectedConnection;
-        public DatabaseConnectionInfo? SelectedConnection
-        {
-            get => _selectedConnection;
-            set
-            {
-                if (SetProperty(ref _selectedConnection, value))
-                {
-                    // When connection changes, update the current execution context
-                    UpdateCurrentQueryExecution();
-                }
-            }
-        }
-        */
 
         private QueryDefinition? _selectedQuery;
         public QueryDefinition? SelectedQuery
@@ -92,6 +77,7 @@ namespace QueryX.ViewModels // Ensure namespace matches your project
             _sqlParser = new SqlParser(); // <-- Instantiate SqlParser
             _queryExecutor = new QueryExecutor(_databaseService, _sqlParser, _encryptionService); // <-- Instantiate QueryExecutor
             _exportService = new ExportService();
+            _sqlValidationService = new SqlValidationService(_databaseService);
 
             _appConfig = new AppConfiguration(); // Start with empty config
 
@@ -217,7 +203,10 @@ namespace QueryX.ViewModels // Ensure namespace matches your project
         private void ExecuteOpenQueryManager(object? parameter)
         {
             // Pass the shared Queries collection and SqlParser (optional)
-            var queryManagerViewModel = new QueryManagerViewModel(this.Queries /*, _sqlParser */);
+            var queryManagerViewModel = new QueryManagerViewModel(
+                this.Queries, this.Connections, _databaseService, _sqlValidationService,
+                _encryptionService /*, _sqlParser */);
+
             var queryManagerView = new QueryManagerView
             {
                 DataContext = queryManagerViewModel

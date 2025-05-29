@@ -93,5 +93,46 @@ namespace QueryX.Services // Ensure namespace matches
                 throw new IOException($"Failed to export data to Excel file '{filePath}'. Reason: {ex.Message}", ex);
             }
         }
+
+        // --- NEW METHOD for exporting multiple tables to one Excel file ---
+        public async Task ExportDataTablesToExcelAsync(List<DataTable> dataTables, string filePath)
+        {
+            if (dataTables == null || !dataTables.Any()) throw new ArgumentNullException(nameof(dataTables));
+            if (string.IsNullOrWhiteSpace(filePath)) throw new ArgumentNullException(nameof(filePath));
+
+            try
+            {
+                await Task.Run(() =>
+                {
+                    using (var workbook = new XLWorkbook())
+                    {
+                        int sheetNumber = 1;
+                        foreach (var dataTable in dataTables)
+                        {
+                            // Use the DataTable's assigned name or create a default one
+                            string sheetName = string.IsNullOrWhiteSpace(dataTable.TableName)
+                                ? $"Sheet{sheetNumber++}"
+                                : dataTable.TableName;
+
+                            // Truncate sheet name if too long (Excel limit is 31 chars) and ensure it's unique
+                            if (sheetName.Length > 31) sheetName = sheetName.Substring(0, 31);
+                            if (workbook.Worksheets.Any(w => w.Name.Equals(sheetName, StringComparison.OrdinalIgnoreCase)))
+                            {
+                                sheetName = $"{sheetName.Substring(0, Math.Min(28, sheetName.Length))}_{sheetNumber++}";
+                            }
+
+                            var worksheet = workbook.Worksheets.Add(dataTable, sheetName);
+                            worksheet.Columns().AdjustToContents(); // Adjust column widths
+                        }
+                        workbook.SaveAs(filePath);
+                    }
+                });
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Error exporting to Excel: {ex}");
+                throw new IOException($"Failed to export data to Excel file '{filePath}'. Reason: {ex.Message}", ex);
+            }
+        }
     }
 }

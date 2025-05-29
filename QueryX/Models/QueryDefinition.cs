@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq; // 需要引入 Linq
+using System.Collections.ObjectModel;
 
 namespace QueryX.Models // 确保命名空间正确
 {
@@ -17,7 +18,8 @@ namespace QueryX.Models // 确保命名空间正确
 
         // SQL 查询语句模板列表。可以包含一个或多个SQL语句。
         // 使用占位符表示参数 (例如: "SELECT * FROM Users WHERE UserID = @UserID AND IsActive = @IsActive")
-        public List<string> SqlTemplates { get; set; } = new List<string>();
+        //public List<string> SqlTemplates { get; set; } = new List<string>();
+        public ObservableCollection<SqlTemplateEditable> SqlTemplates { get; set; } = new ObservableCollection<SqlTemplateEditable>();
 
         /// <summary>
         /// List of DatabaseConnectionInfo Ids that this query is intended for or compatible with.
@@ -25,9 +27,8 @@ namespace QueryX.Models // 确保命名空间正确
         /// </summary>
         public List<Guid> TargetConnectionIds { get; set; } = new List<Guid>();
 
-
         // 此查询所需参数的定义列表
-        public List<ParameterDefinition> Parameters { get; set; } = new List<ParameterDefinition>();
+        public ObservableCollection<ParameterDefinition> Parameters { get; set; } = new ObservableCollection<ParameterDefinition>();
 
         public override string ToString()
         {

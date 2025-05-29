@@ -1,5 +1,6 @@
 ﻿using QueryX.Models; // 引入你的模型命名空间
 using System;
+using System.Diagnostics;
 using System.IO; // 用于文件操作
 using System.Text.Json; // 用于 JSON 序列化/反序列化
 
@@ -40,9 +41,15 @@ namespace QueryX.Services // 确保命名空间正确
                 {
                     // 读取文件所有内容
                     string json = File.ReadAllText(_configFilePath);
-                    // 反序列化 JSON 字符串到 AppConfiguration 对象
-                    // 使用 ?? 如果反序列化结果为 null，则返回一个新的空配置
-                    return JsonSerializer.Deserialize<AppConfiguration>(json) ?? new AppConfiguration();
+                    Debug.WriteLine($"Attempting to deserialize JSON: {json}");
+                    var config = JsonSerializer.Deserialize<AppConfiguration>(json);
+                    if (config == null)
+                    {
+                        System.Diagnostics.Debug.WriteLine("Deserialization resulted in null AppConfiguration.");
+                        return new AppConfiguration();
+                    }
+                    System.Diagnostics.Debug.WriteLine($"Loaded {config.Connections.Count} connections and {config.Queries.Count} queries.");
+                    return config;
                 }
             }
             catch (JsonException jsonEx)

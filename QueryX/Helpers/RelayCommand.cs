@@ -67,4 +67,59 @@ namespace QueryX.Helpers // Ensure namespace matches your project
             _execute(parameter);
         }
     }
+
+    // --- NEW GENERIC VERSION ---
+    /// <summary>
+    /// A generic command whose sole purpose is to relay its functionality to other
+    /// objects by invoking delegates. The default return value for the CanExecute
+    /// method is 'true'. This command takes a strongly-typed parameter.
+    /// </summary>
+    public class RelayCommand<T> : ICommand
+    {
+        private readonly Action<T?> _execute;
+        private readonly Predicate<T?>? _canExecute;
+
+        public RelayCommand(Action<T?> execute, Predicate<T?>? canExecute = null)
+        {
+            _execute = execute ?? throw new ArgumentNullException(nameof(execute));
+            _canExecute = canExecute;
+        }
+
+        public event EventHandler? CanExecuteChanged
+        {
+            add { CommandManager.RequerySuggested += value; }
+            remove { CommandManager.RequerySuggested -= value; }
+        }
+
+        public bool CanExecute(object? parameter)
+        {
+            if (_canExecute == null)
+                return true;
+
+            // Handle nullable value types and reference types
+            if (parameter == null)
+            {
+                return _canExecute(default(T));
+            }
+            return _canExecute((T)parameter);
+        }
+
+        public void Execute(object? parameter)
+        {
+            if (parameter == null)
+            {
+                _execute(default(T));
+            }
+            else
+            {
+                _execute((T)parameter);
+            }
+        }
+
+        public void RaiseCanExecuteChanged()
+        {
+            Application.Current?.Dispatcher?.Invoke(CommandManager.InvalidateRequerySuggested);
+        }
+    }
+
 }

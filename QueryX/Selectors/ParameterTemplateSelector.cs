@@ -13,6 +13,7 @@ namespace QueryX.Selectors
         public DataTemplate? DecimalTemplate { get; set; }
         public DataTemplate? BooleanTemplate { get; set; }
         public DataTemplate? DateTimeTemplate { get; set; }
+        public DataTemplate? ListTemplate { get; set; }
         // Add more templates as needed (e.g., for Lists)
 
         public override DataTemplate? SelectTemplate(object item, DependencyObject container)
@@ -39,6 +40,9 @@ namespace QueryX.Selectors
 
                     case ParameterDataType.DateTime:
                         return DateTimeTemplate;
+
+                    case ParameterDataType.List:
+                        return ListTemplate;
 
                     // Handle other types or return default/string template
                     default:

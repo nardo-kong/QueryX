@@ -1,4 +1,6 @@
-﻿namespace QueryX.Models // 确保命名空间正确
+﻿using System.Text.Json.Serialization;
+
+namespace QueryX.Models // 确保命名空间正确
 {
     // 定义参数的数据类型枚举
     public enum ParameterDataType
@@ -8,7 +10,7 @@
         Decimal,
         DateTime,
         Boolean,
-        // List // 可以后续添加对下拉列表的支持
+        List // 可以后续添加对下拉列表的支持
     }
 
     public class ParameterDefinition
@@ -34,6 +36,22 @@
         // （未来扩展）用于下拉列表类型参数的选项来源
         // 可以是固定的值列表字符串，或是一个用于获取选项的SQL查询
         // public string? ListOptionsSource { get; set; }
+
+
+        // For DataType = List, this holds the predefined string options.
+        public List<string>? ValueListOptions { get; set; } = new List<string>();
+
+        // Helper property for easy binding in the Query Manager's DataGrid.
+        [JsonIgnore]
+        public string ValueListOptionsString
+        {
+            get => ValueListOptions != null ? string.Join(",", ValueListOptions) : string.Empty;
+            set
+            {
+                ValueListOptions = value?.Split(new[] { ',' }, StringSplitOptions.RemoveEmptyEntries)
+                                        .Select(s => s.Trim()).ToList() ?? new List<string>();
+            }
+        }
 
         public override string ToString()
         {

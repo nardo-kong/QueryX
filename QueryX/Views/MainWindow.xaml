@@ -17,6 +17,8 @@
         <conv:NullToFalseConverter x:Key="NullToFalseConverter"/>
         <conv:RequiredToStarConverter x:Key="RequiredToStarConverter"/>
         <conv:CountGreaterThanParameterToBoolConverter x:Key="CountGreaterThanParameterToBoolConverter"/>
+        <conv:NullToVisibilityConverter x:Key="NullToVisibilityConverter"/>
+        <conv:StartsWithParameterConverter x:Key="StartsWithParameterConverter"/>
 
         <DataTemplate x:Key="ParameterInputTemplate" DataType="{x:Type vm:ParameterInputViewModel}">
             <StackPanel Orientation="Vertical" Margin="0,5">
@@ -30,35 +32,38 @@
         </DataTemplate>
 
         <DataTemplate x:Key="StringParameterTemplate" DataType="{x:Type vm:ParameterInputViewModel}">
-            <StackPanel Orientation="Vertical" Margin="0,2,0,3">
+            <StackPanel Orientation="Vertical" Margin="0,2,0,5">
                 <TextBlock ToolTip="{Binding Definition.Tooltip}">
                     <Run Text="{Binding Definition.DisplayName}"/>
                     <Run Text="{Binding Definition.IsRequired, Converter={StaticResource RequiredToStarConverter}}" Foreground="Red"/>
                     <Run Text=":"/>
                 </TextBlock>
                 <TextBox Text="{Binding Value, UpdateSourceTrigger=PropertyChanged, TargetNullValue=''}" Margin="0,2,0,0" />
+                <TextBlock Text="{Binding ErrorMessage}" Foreground="Red" FontSize="10" Margin="2,2,0,0" Visibility="{Binding ErrorMessage, Converter={StaticResource NullToVisibilityConverter}}"/>
             </StackPanel>
         </DataTemplate>
 
         <DataTemplate x:Key="IntegerParameterTemplate" DataType="{x:Type vm:ParameterInputViewModel}">
-            <StackPanel Orientation="Vertical" Margin="0,2,0,3">
+            <StackPanel Orientation="Vertical" Margin="0,2,0,5">
                 <TextBlock ToolTip="{Binding Definition.Tooltip}">
                     <Run Text="{Binding Definition.DisplayName}"/>
                     <Run Text="{Binding Definition.IsRequired, Converter={StaticResource RequiredToStarConverter}}" Foreground="Red"/>
                     <Run Text=":"/>
                 </TextBlock>
                 <TextBox Text="{Binding Value, UpdateSourceTrigger=PropertyChanged, TargetNullValue=''}" Margin="0,2,0,0" />
+                <TextBlock Text="{Binding ErrorMessage}" Foreground="Red" FontSize="10" Margin="2,2,0,0" Visibility="{Binding ErrorMessage, Converter={StaticResource NullToVisibilityConverter}}"/>
             </StackPanel>
         </DataTemplate>
 
         <DataTemplate x:Key="DecimalParameterTemplate" DataType="{x:Type vm:ParameterInputViewModel}">
-            <StackPanel Orientation="Vertical" Margin="0,2,0,3">
+            <StackPanel Orientation="Vertical" Margin="0,2,0,5">
                 <TextBlock ToolTip="{Binding Definition.Tooltip}">
                     <Run Text="{Binding Definition.DisplayName}"/>
                     <Run Text="{Binding Definition.IsRequired, Converter={StaticResource RequiredToStarConverter}}" Foreground="Red"/>
                     <Run Text=":"/>
                 </TextBlock>
                 <TextBox Text="{Binding Value, UpdateSourceTrigger=PropertyChanged, TargetNullValue=''}" Margin="0,2,0,0" />
+                <TextBlock Text="{Binding ErrorMessage}" Foreground="Red" FontSize="10" Margin="2,2,0,0" Visibility="{Binding ErrorMessage, Converter={StaticResource NullToVisibilityConverter}}"/>
             </StackPanel>
         </DataTemplate>
 
@@ -70,21 +75,38 @@
         </DataTemplate>
 
         <DataTemplate x:Key="DateTimeParameterTemplate" DataType="{x:Type vm:ParameterInputViewModel}">
-            <StackPanel Orientation="Vertical" Margin="0,2,0,3">
+            <StackPanel Orientation="Vertical" Margin="0,2,0,5">
                 <TextBlock ToolTip="{Binding Definition.Tooltip}">
                     <Run Text="{Binding Definition.DisplayName}"/>
                     <Run Text="{Binding Definition.IsRequired, Converter={StaticResource RequiredToStarConverter}}" Foreground="Red"/>
                     <Run Text=":"/>
                 </TextBlock>
                 <DatePicker SelectedDate="{Binding Value, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Margin="0,2,0,0"/>
+                <TextBlock Text="{Binding ErrorMessage}" Foreground="Red" FontSize="10" Margin="2,2,0,0" Visibility="{Binding ErrorMessage, Converter={StaticResource NullToVisibilityConverter}}"/>
             </StackPanel>
         </DataTemplate>
+
+        <DataTemplate x:Key="ListParameterTemplate" DataType="{x:Type vm:ParameterInputViewModel}">
+            <StackPanel Orientation="Vertical" Margin="0,2,0,5">
+                <TextBlock ToolTip="{Binding Definition.Tooltip}">
+                    <Run Text="{Binding Definition.DisplayName}"/>
+                    <Run Text="{Binding Definition.IsRequired, Converter={StaticResource RequiredToStarConverter}}" Foreground="Red"/>
+                    <Run Text=":"/>
+                </TextBlock>
+                <ComboBox ItemsSource="{Binding OptionsForList}"
+                      SelectedItem="{Binding Value, Mode=TwoWay}"
+                      Margin="0,2,0,0"/>
+                <TextBlock Text="{Binding ErrorMessage}" Foreground="Red" FontSize="10" Margin="2,2,0,0" Visibility="{Binding ErrorMessage, Converter={StaticResource NullToVisibilityConverter}}"/>
+            </StackPanel>
+        </DataTemplate>
+
         <sel:ParameterTemplateSelector x:Key="MyParameterTemplateSelector"
                                         StringTemplate="{StaticResource StringParameterTemplate}"
                                         IntegerTemplate="{StaticResource IntegerParameterTemplate}"
                                         DecimalTemplate="{StaticResource DecimalParameterTemplate}"
                                         BooleanTemplate="{StaticResource BooleanParameterTemplate}"
-                                        DateTimeTemplate="{StaticResource DateTimeParameterTemplate}"/>
+                                        DateTimeTemplate="{StaticResource DateTimeParameterTemplate}"
+                                        ListTemplate="{StaticResource ListParameterTemplate}"/>
 
         <DataTemplate x:Key="QueryExecutionTemplate" DataType="{x:Type vm:QueryExecutionViewModel}">
             <Grid>
@@ -130,35 +152,44 @@
                 </Grid>
 
                 <GroupBox Grid.Row="4" Header="Results" Padding="5">
-                    <DataGrid ItemsSource="{Binding CurrentResult.ResultTable, TargetNullValue={x:Null}}"
-                               IsReadOnly="True" AutoGenerateColumns="True" CanUserAddRows="False" CanUserDeleteRows="False"
-                               SelectionMode="Extended" SelectionUnit="CellOrRowHeader" GridLinesVisibility="All"
-                               HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Auto">
-                        <DataGrid.Style>
-                            <Style TargetType="DataGrid">
-                                <Style.Triggers>
-                                    <DataTrigger Binding="{Binding CurrentResult.ResultTable}" Value="{x:Null}">
-                                        <Setter Property="Template">
-                                            <Setter.Value>
-                                                <ControlTemplate TargetType="DataGrid">
-                                                    <TextBlock Text="{Binding CurrentResult.ErrorMessage, FallbackValue='Select a connection/query or execute.'}" VerticalAlignment="Center" HorizontalAlignment="Center" Foreground="Gray"/>
-                                                </ControlTemplate>
-                                            </Setter.Value>
-                                        </Setter>
-                                    </DataTrigger>
-                                    <DataTrigger Binding="{Binding CurrentResult.ResultTable.Rows.Count}" Value="0">
-                                        <Setter Property="Template">
-                                            <Setter.Value>
-                                                <ControlTemplate TargetType="DataGrid">
-                                                    <TextBlock Text="Query returned no rows." VerticalAlignment="Center" HorizontalAlignment="Center" Foreground="Gray"/>
-                                                </ControlTemplate>
-                                            </Setter.Value>
-                                        </Setter>
-                                    </DataTrigger>
-                                </Style.Triggers>
-                            </Style>
-                        </DataGrid.Style>
-                    </DataGrid>
+                    <DockPanel>
+                        <TextBlock DockPanel.Dock="Top" Text="{Binding CurrentResult.Summary, FallbackValue='Query has not been executed.'}"
+                           Margin="2,0,2,5" TextWrapping="Wrap" FontStyle="Italic" Foreground="Gray"/>
+
+                        <TabControl ItemsSource="{Binding CurrentResult.ResultTables}">
+                            <TabControl.ItemTemplate>
+                                <DataTemplate>
+                                    <TextBlock Text="{Binding TableName}" Margin="5,2"/>
+                                </DataTemplate>
+                            </TabControl.ItemTemplate>
+                            <TabControl.ContentTemplate>
+                                <DataTemplate>
+                                    <DataGrid ItemsSource="{Binding}" IsReadOnly="True" AutoGenerateColumns="True" CanUserAddRows="False"
+                                      CanUserDeleteRows="False" SelectionMode="Extended"
+                                      SelectionUnit="CellOrRowHeader" GridLinesVisibility="All"
+                                      HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Auto"/>
+                                </DataTemplate>
+                            </TabControl.ContentTemplate>
+
+                            <TabControl.Style>
+                                <Style TargetType="TabControl">
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding CurrentResult.ResultTables.Count}" Value="0">
+                                            <Setter Property="Template">
+                                                <Setter.Value>
+                                                    <ControlTemplate TargetType="TabControl">
+                                                        <TextBlock Text="{Binding CurrentResult.ErrorMessage, FallbackValue='No result sets to display.'}"
+                                                           VerticalAlignment="Center" HorizontalAlignment="Center" Foreground="Gray"
+                                                           Visibility="{Binding CurrentResult.IsSuccess, Converter={StaticResource BoolToVisibilityConverter}}"/>
+                                                    </ControlTemplate>
+                                                </Setter.Value>
+                                            </Setter>
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </TabControl.Style>
+                        </TabControl>
+                    </DockPanel>
                 </GroupBox>
             </Grid>
         </DataTemplate>
@@ -174,17 +205,18 @@
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="*"/>
             <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
         </Grid.RowDefinitions>
 
-        <TextBlock Grid.Row="0" Grid.Column="0" Text="Queries" FontWeight="Bold" Margin="0,0,0,5"/>
+        <TextBlock Grid.Row="0" Grid.Column="0" Text="Available Queries" FontWeight="Bold" Margin="0,0,0,5"/>
         <TextBlock Grid.Row="0" Grid.Column="1" Text="Query Execution" FontWeight="Bold" Margin="5,0,0,5"/>
 
         <ListBox Grid.Row="1" Grid.Column="0"
                  ItemsSource="{Binding Queries}"
                  SelectedItem="{Binding SelectedQuery}"
                  DisplayMemberPath="Name" />
-        <ContentControl Grid.Row="1" Grid.Column="1" Margin="5,0,0,0"
-                       Content="{Binding CurrentQueryExecution}">
+        <Grid Grid.Row="1" Grid.Column="1" Margin="5,0,0,0">
+            <ContentControl Content="{Binding CurrentQueryExecution}">
             <ContentControl.Resources>
                 <DataTemplate x:Key="NullExecutionTemplate">
                     <Border BorderBrush="LightGray" BorderThickness="1">
@@ -206,11 +238,49 @@
                 </Style>
             </ContentControl.Style>
         </ContentControl>
+            <Border Background="#77FFFFFF" Visibility="{Binding CurrentQueryExecution.IsBusy, Converter={StaticResource BoolToVisibilityConverter}, FallbackValue=Collapsed}">
+                <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
+                    <ProgressBar IsIndeterminate="True" Width="100" Height="15"/>
+                    <TextBlock Text="Processing..." FontSize="14" Margin="0,10,0,0"/>
+                </StackPanel>
+            </Border>
+        </Grid>
+        
 
         <StackPanel Grid.Row="2" Grid.Column="0" Grid.ColumnSpan="2" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,10,0,0">
             <Button Content="Manage Connections..." Command="{Binding OpenConnectionManagerCommand}" Padding="10,5" Margin="0,0,10,0"/>
+            <Button Content="Manage Queries..." Command="{Binding OpenQueryManagerCommand}" Padding="10,5" Margin="0,0,10,0"/>
             <Button Content="Save Configuration" Command="{Binding SaveConfigurationCommand}" Padding="10,5"/>
         </StackPanel>
+
+        <Border Grid.Row="3" Grid.Column="0" Grid.ColumnSpan="2"
+                BorderBrush="LightGray" BorderThickness="0,1,0,0" Padding="5" Margin="0,5,0,0"
+                Visibility="{Binding CurrentQueryExecution, Converter={StaticResource NullToVisibilityConverter}}">
+            <StackPanel Orientation="Horizontal">
+                <TextBlock Text="Active DB: " FontWeight="SemiBold"/>
+                <TextBlock Text="{Binding CurrentQueryExecution.SelectedConnectionForExecution.ConnectionName, FallbackValue='N/A'}" Margin="0,0,5,0"/>
+                <TextBlock Text="("/>
+                <TextBlock Text="{Binding CurrentQueryExecution.ConnectionTestStatusMessage, FallbackValue='Untested'}">
+                    <TextBlock.Style>
+                        <Style TargetType="TextBlock">
+                            <Setter Property="Foreground" Value="Orange"/>
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding CurrentQueryExecution.ConnectionTestStatusMessage}" Value="OK">
+                                    <Setter Property="Foreground" Value="Green"/>
+                                </DataTrigger>
+                                <DataTrigger Binding="{Binding CurrentQueryExecution.ConnectionTestStatusMessage, Converter={StaticResource StartsWithParameterConverter}, ConverterParameter=Failed}">
+                                    <Setter Property="Foreground" Value="Red"/>
+                                </DataTrigger>
+                                <DataTrigger Binding="{Binding CurrentQueryExecution.ConnectionTestStatusMessage}" Value="Testing...">
+                                    <Setter Property="Foreground" Value="Blue"/>
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </TextBlock.Style>
+                </TextBlock>
+                <TextBlock Text=")"/>
+            </StackPanel>
+        </Border>
 
     </Grid>
 </Window>

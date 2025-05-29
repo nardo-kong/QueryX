@@ -105,7 +105,7 @@ namespace QueryX.Services // Ensure namespace matches your project
             }
             catch (Exception ex)
             {
-                System.Diagnostics.Debug.WriteLine($"Error building connection string for {connectionInfo.ConnectionName}: {ex.Message}");
+                Debug.WriteLine($"Error building connection string for {connectionInfo.ConnectionName}: {ex.Message}");
                 return string.Empty; // Return empty on error
             }
         }
@@ -169,5 +169,19 @@ namespace QueryX.Services // Ensure namespace matches your project
                 }
             }
         }
+
+        public DbConnection CreateDbConnection(DatabaseType dbType, string connectionString)
+        {
+            switch (dbType)
+            {
+                case DatabaseType.SQLServer: return new SqlConnection(connectionString);
+                case DatabaseType.PostgreSQL: return new NpgsqlConnection(connectionString);
+                case DatabaseType.MySQL: return new MySqlConnection(connectionString);
+                case DatabaseType.SQLite: return new SqliteConnection(connectionString);
+                case DatabaseType.Oracle: return new OracleConnection(connectionString);
+                default: throw new NotSupportedException($"Database type '{dbType}' not supported for connection creation.");
+            }
+        }
+
     }
 }

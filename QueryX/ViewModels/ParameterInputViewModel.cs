@@ -5,6 +5,7 @@ namespace QueryX.ViewModels // Ensure namespace matches
     public class ParameterInputViewModel : ViewModelBase // Inherit from ViewModelBase
     {
         private object? _value; // Field to hold the user-entered value
+        private string? _errorMessage;
 
         // The definition containing metadata (Name, Type, IsRequired etc.)
         public ParameterDefinition Definition { get; }
@@ -13,30 +14,84 @@ namespace QueryX.ViewModels // Ensure namespace matches
         public object? Value
         {
             get => _value;
-            set => SetProperty(ref _value, value); // Use SetProperty for notification
+            set
+            {
+                if (SetProperty(ref _value, value))
+                {
+                    // Re-validate whenever the value changes
+                    IsValid(out _);
+                }
+            }
+        }
+
+        public IEnumerable<string> OptionsForList => Definition.ValueListOptions ?? Enumerable.Empty<string>();
+
+        public string? ErrorMessage
+        {
+            get => _errorMessage;
+            private set => SetProperty(ref _errorMessage, value);
         }
 
         // Constructor
         public ParameterInputViewModel(ParameterDefinition definition)
         {
             Definition = definition ?? throw new ArgumentNullException(nameof(definition));
-            // Set initial value from default defined in the parameter definition
-            _value = Definition.DefaultValue;
+
+            // Set default value
+            if (definition.DataType == ParameterDataType.List && definition.ValueListOptions?.Any() == true)
+            {
+                // For Lists, check if default value is in the list, otherwise use the first item or null
+                string? defaultStr = definition.DefaultValue?.ToString();
+                _value = definition.ValueListOptions.Contains(defaultStr) ? defaultStr : definition.ValueListOptions.FirstOrDefault();
+            }
+            else
+            {
+                _value = definition.DefaultValue;
+            }
         }
 
-        // Basic validation example (can be expanded)
-        public bool IsValid(out string? errorMessage)
+        public bool IsValid(out string? validationMessage)
         {
-            errorMessage = null;
+            // First, check for required
             if (Definition.IsRequired && (_value == null || string.IsNullOrWhiteSpace(_value.ToString())))
             {
-                errorMessage = $"{Definition.DisplayName} is required.";
+                validationMessage = $"{Definition.DisplayName} is required.";
+                ErrorMessage = validationMessage;
                 return false;
             }
 
-            // TODO: Add type-specific validation based on Definition.DataType (e.g., check if Int is a valid integer)
+            // Then, perform type-specific validation
+            if (_value != null && !string.IsNullOrWhiteSpace(_value.ToString()))
+            {
+                string valStr = _value.ToString()!;
+                switch (Definition.DataType)
+                {
+                    case ParameterDataType.Int:
+                        if (!int.TryParse(valStr, out _))
+                        {
+                            validationMessage = "Value must be a valid integer (e.g., 123).";
+                            ErrorMessage = validationMessage;
+                            return false;
+                        }
+                        break;
+                    case ParameterDataType.Decimal:
+                        if (!decimal.TryParse(valStr, out _))
+                        {
+                            validationMessage = "Value must be a valid decimal number (e.g., 123.45).";
+                            ErrorMessage = validationMessage;
+                            return false;
+                        }
+                        break;
+                        // DateTime is handled by DatePicker, Boolean by CheckBox, List by ComboBox.
+                        // String type has no specific validation here but could (e.g., regex).
+                }
+            }
 
+            // If all checks pass
+            validationMessage = null;
+            ErrorMessage = null; // Clear any previous error
             return true;
         }
+
     }
 }

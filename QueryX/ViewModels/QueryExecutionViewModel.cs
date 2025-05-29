@@ -221,6 +221,7 @@ namespace QueryX.ViewModels // Ensure namespace matches
                     parameterValues,
                     _cancellationTokenSource.Token);
 
+                /*
                 // Update status based on result
                 if (CurrentResult.IsSuccess)
                 {
@@ -237,6 +238,9 @@ namespace QueryX.ViewModels // Ensure namespace matches
                 {
                     StatusMessage = $"Error: {CurrentResult.ErrorMessage}";
                 }
+                */
+                StatusMessage = CurrentResult.Summary;
+
             }
             catch (Exception ex) // Catch unexpected errors from the executor call itself
             {
@@ -268,18 +272,30 @@ namespace QueryX.ViewModels // Ensure namespace matches
         private bool CanExecuteExport(object? parameter)
         {
             // Can export if not busy and there is a result table with rows
-            return !IsBusy && CurrentResult?.ResultTable != null && CurrentResult.ResultTable.Rows.Count > 0;
+            return !IsBusy && CurrentResult?.ResultTables.Any() == true;
         }
 
         private async Task ExecuteExportCsvAsync()
         {
-            if (!CanExecuteExport(null) || CurrentResult?.ResultTable == null) return;
+            if (!CanExecuteExport(null) || CurrentResult?.ResultTables.FirstOrDefault() == null) return;
+
+            // For CSV, we will export the FIRST result set.
+            DataTable tableToExport = CurrentResult.ResultTables.First();
+            string defaultFileName = $"{_queryDefinition.Name}_Results_{DateTime.Now:yyyyMMddHHmmss}.csv";
+            string dialogTitle = "Save First Result Set as CSV";
+
+            if (CurrentResult.ResultTables.Count > 1)
+            {
+                defaultFileName = $"{_queryDefinition.Name}_ResultSet1_{DateTime.Now:yyyyMMddHHmmss}.csv";
+                // Optionally inform the user they are only exporting the first table.
+                // MessageBox.Show("Multiple result sets were returned. Only the first result set will be exported to CSV.", "CSV Export", MessageBoxButton.OK, MessageBoxImage.Information);
+            }
 
             var sfd = new SaveFileDialog
             {
                 Filter = "CSV Files (*.csv)|*.csv|All files (*.*)|*.*",
-                FileName = $"{_queryDefinition.Name}_Results_{DateTime.Now:yyyyMMddHHmmss}.csv", // Default filename
-                Title = "Save Results as CSV"
+                FileName = defaultFileName,
+                Title = dialogTitle
             };
 
             if (sfd.ShowDialog() == true)
@@ -288,7 +304,7 @@ namespace QueryX.ViewModels // Ensure namespace matches
                 StatusMessage = $"Exporting to CSV: {Path.GetFileName(sfd.FileName)}...";
                 try
                 {
-                    await _exportService.ExportDataTableToCsvAsync(CurrentResult.ResultTable, sfd.FileName);
+                    await _exportService.ExportDataTableToCsvAsync(tableToExport, sfd.FileName);
                     StatusMessage = $"Successfully exported results to CSV: {sfd.FileName}";
                 }
                 catch (Exception ex)
@@ -306,7 +322,8 @@ namespace QueryX.ViewModels // Ensure namespace matches
 
         private async Task ExecuteExportExcelAsync()
         {
-            if (!CanExecuteExport(null) || CurrentResult?.ResultTable == null) return;
+            // --- MODIFIED: This will now export ALL result tables to different sheets ---
+            if (!CanExecuteExport(null) || CurrentResult?.ResultTables.Any() != true) return;
 
             var sfd = new SaveFileDialog
             {
@@ -321,8 +338,9 @@ namespace QueryX.ViewModels // Ensure namespace matches
                 StatusMessage = $"Exporting to Excel: {Path.GetFileName(sfd.FileName)}...";
                 try
                 {
-                    await _exportService.ExportDataTableToExcelAsync(CurrentResult.ResultTable, sfd.FileName);
-                    StatusMessage = $"Successfully exported results to Excel: {sfd.FileName}";
+                    // Pass the entire list of tables to the service
+                    await _exportService.ExportDataTablesToExcelAsync(CurrentResult.ResultTables, sfd.FileName);
+                    StatusMessage = $"Successfully exported {CurrentResult.ResultTables.Count} result set(s) to Excel: {sfd.FileName}";
                 }
                 catch (Exception ex)
                 {

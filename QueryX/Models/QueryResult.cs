@@ -1,4 +1,8 @@
-﻿using System.Data; // Required for DataTable
+﻿using System;
+using System.Collections.Generic;
+using System.Data;
+using System.Linq;
+using System.Text;
 
 namespace QueryX.Models // Ensure namespace matches
 {
@@ -10,8 +14,8 @@ namespace QueryX.Models // Ensure namespace matches
         // Holds error message if IsSuccess is false
         public string? ErrorMessage { get; set; }
 
-        // Holds the result data table for SELECT queries
-        public DataTable? ResultTable { get; set; }
+        // MODIFIED: Changed from single DataTable to a List of DataTables
+        public List<DataTable> ResultTables { get; set; } = new List<DataTable>();
 
         // Holds the number of records affected by INSERT, UPDATE, DELETE statements
         // Could be the sum if multiple non-SELECT statements were executed
@@ -20,11 +24,36 @@ namespace QueryX.Models // Ensure namespace matches
         // Optional: Execution time
         public TimeSpan? Duration { get; set; }
 
+        // Helper property to generate a summary of the execution
+        public string Summary
+        {
+            get
+            {
+                if (!IsSuccess)
+                {
+                    return $"Execution failed after {Duration?.TotalSeconds:F2}s: {ErrorMessage}";
+                }
+
+                var sb = new StringBuilder();
+                sb.Append($"Execution successful in {Duration?.TotalSeconds:F2}s. ");
+
+                if (ResultTables.Any())
+                {
+                    sb.Append($"Returned {ResultTables.Count} result set(s). ");
+                }
+                if (RecordsAffected.HasValue && RecordsAffected.Value > 0)
+                {
+                    sb.Append($"{RecordsAffected.Value} record(s) affected.");
+                }
+                return sb.ToString();
+            }
+        }
+
         // Constructor for success with DataTable
         public QueryResult(DataTable dataTable, TimeSpan? duration = null)
         {
             IsSuccess = true;
-            ResultTable = dataTable;
+            //ResultTable = dataTable;
             RecordsAffected = null; // Not applicable for SELECT results directly in this model
             Duration = duration;
         }
@@ -33,7 +62,7 @@ namespace QueryX.Models // Ensure namespace matches
         public QueryResult(int recordsAffected, TimeSpan? duration = null)
         {
             IsSuccess = true;
-            ResultTable = null;
+            //ResultTable = null;
             RecordsAffected = recordsAffected;
             Duration = duration;
         }
@@ -43,15 +72,14 @@ namespace QueryX.Models // Ensure namespace matches
         {
             IsSuccess = false;
             ErrorMessage = errorMessage;
-            ResultTable = null;
-            RecordsAffected = null;
+            //ResultTable = null;
+            //RecordsAffected = null;
         }
 
-        // Default constructor (implies failure or not yet run)
+        // Default constructor for general use
         public QueryResult()
         {
-            IsSuccess = false;
-            ErrorMessage = "Query has not been executed yet.";
+            IsSuccess = true; // Assume success until an error occurs
         }
     }
 }
