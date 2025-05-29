@@ -1,4 +1,5 @@
 ﻿using QueryX.Models;
+using QueryX.Logging; // For logging
 using System;
 using System.Collections.Generic;
 using System.Data;
@@ -52,6 +53,8 @@ namespace QueryX.Services // Ensure namespace matches
             DataTable? lastResultTable = null;
             int totalRecordsAffected = 0;
             bool isSelectQuery = false;
+
+            Log.Logger?.Information("Executing query '{QueryName}' on connection '{ConnectionName}'.", queryDefinition.Name, connectionInfo.ConnectionName);
 
             // --- Decrypt password if needed ---
             if (!connectionInfo.UseWindowsAuth)
@@ -171,41 +174,19 @@ namespace QueryX.Services // Ensure namespace matches
                 overallResult.RecordsAffected = totalRecordsAffected;
                 //stopwatch.Stop();
 
-                /*
-                // Return appropriate result based on last executed statement type
-                if (lastResultTable != null)
-                {
-                    return new QueryResult(lastResultTable, stopwatch.Elapsed);
-                }
-                else
-                {
-                    return new QueryResult(totalRecordsAffected, stopwatch.Elapsed);
-                }
-                */
             }
             catch (OperationCanceledException)
             {
-                /*
-                stopwatch.Stop();
-                // Optional: Rollback transaction if used
-                // if (transaction != null) await transaction.RollbackAsync();
-                return new QueryResult("Query execution was cancelled.");
-                */
                 overallResult.IsSuccess = false;
                 overallResult.ErrorMessage = "Query execution was cancelled.";
+                Log.Logger?.Warning("Query execution was cancelled by the user.");
             }
             catch (Exception ex)
             {
-                /*
-                stopwatch.Stop();
-                Debug.WriteLine($"Query execution failed: {ex}");
-                // Optional: Rollback transaction if used
-                // if (transaction != null) try { await transaction.RollbackAsync(); } catch {  ignore rollback error  }
-                return new QueryResult($"Execution failed: {ex.Message}");
-                */
                 overallResult.IsSuccess = false;
                 overallResult.ErrorMessage = $"Execution failed: {ex.Message}";
                 Debug.WriteLine($"Query execution failed: {ex}");
+                Log.Logger?.Error(ex, "An exception occurred during query execution for query '{QueryName}'.", queryDefinition.Name);
             }
             finally
             {

@@ -1,4 +1,5 @@
 ﻿using QueryX.Models; // 引入你的模型命名空间
+using QueryX.Logging; // 引入日志记录命名空间
 using System;
 using System.Diagnostics;
 using System.IO; // 用于文件操作
@@ -13,16 +14,18 @@ namespace QueryX.Services // 确保命名空间正确
         // 推荐将配置文件存储在用户的应用程序数据目录中
         private readonly string _configFilePath;
 
+        public string AppDataFolderPath { get; }
+
         public ConfigurationManager()
         {
             // 获取当前用户的 ApplicationData 文件夹路径
             // 例如 C:\Users\<YourUsername>\AppData\Roaming
             string appDataPath = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData);
             // 在 AppData 下为你的应用程序创建一个子目录（如果不存在）
-            string appFolderPath = Path.Combine(appDataPath, "QueryX"); // 使用你的应用程序名称
-            Directory.CreateDirectory(appFolderPath); // 确保目录存在
+            AppDataFolderPath = Path.Combine(appDataPath, "QueryX");
+            Directory.CreateDirectory(AppDataFolderPath); // 确保目录存在
             // 组合成完整的配置文件路径
-            _configFilePath = Path.Combine(appFolderPath, ConfigFileName);
+            _configFilePath = Path.Combine(AppDataFolderPath, ConfigFileName);
         }
 
         // 获取配置文件的完整路径 (可选，可能用于调试或显示给用户)
@@ -45,10 +48,13 @@ namespace QueryX.Services // 确保命名空间正确
                     var config = JsonSerializer.Deserialize<AppConfiguration>(json);
                     if (config == null)
                     {
-                        System.Diagnostics.Debug.WriteLine("Deserialization resulted in null AppConfiguration.");
+                        Debug.WriteLine("Deserialization resulted in null AppConfiguration.");
                         return new AppConfiguration();
                     }
-                    System.Diagnostics.Debug.WriteLine($"Loaded {config.Connections.Count} connections and {config.Queries.Count} queries.");
+                    Debug.WriteLine($"Loaded {config.Connections.Count} connections and {config.Queries.Count} queries.");
+
+                    Log.Logger?.Information("Configuration loaded successfully from {Path}", _configFilePath);
+
                     return config;
                 }
             }
@@ -56,17 +62,21 @@ namespace QueryX.Services // 确保命名空间正确
             {
                 // 处理 JSON 格式错误
                 Console.Error.WriteLine($"Error deserializing configuration file '{_configFilePath}': {jsonEx.Message}");
+                Log.Logger?.Error(jsonEx, "Failed to deserialize configuration from {Path}. A new default configuration will be used.", _configFilePath);
                 // 可以考虑通知用户配置文件损坏，或者备份旧文件并创建新文件
             }
             catch (IOException ioEx)
             {
                 // 处理文件读写错误
                 Console.Error.WriteLine($"Error reading configuration file '{_configFilePath}': {ioEx.Message}");
+                Log.Logger?.Error(ioEx, "Failed to read configuration from {Path}. A new default configuration will be used.", _configFilePath);
             }
             catch (Exception ex)
             {
                 // 处理其他意外错误
                 Console.Error.WriteLine($"Unexpected error loading configuration: {ex.Message}");
+
+                Log.Logger?.Warning(ex, "Failed to load configuration from {Path}. A new default configuration will be used.", _configFilePath);
             }
 
             // 如果文件不存在或加载失败，返回一个默认的空配置对象
@@ -91,21 +101,28 @@ namespace QueryX.Services // 确保命名空间正确
 
                 // 将 JSON 字符串写入文件，如果文件已存在则覆盖
                 File.WriteAllText(_configFilePath, json);
+
+                Log.Logger?.Information("Configuration saved successfully to {Path}", _configFilePath);
+
                 return true; // 保存成功
             }
             catch (JsonException jsonEx)
             {
                 Console.Error.WriteLine($"Error serializing configuration: {jsonEx.Message}");
+                Log.Logger?.Error(jsonEx, "Failed to serialize configuration to {Path}", _configFilePath);
             }
             catch (IOException ioEx)
             {
                 // 处理文件写错误
                 Console.Error.WriteLine($"Error writing configuration file '{_configFilePath}': {ioEx.Message}");
+                Log.Logger?.Error(ioEx, "Failed to write configuration to {Path}", _configFilePath);
             }
             catch (Exception ex)
             {
                 // 处理其他意外错误
                 Console.Error.WriteLine($"Unexpected error saving configuration: {ex.Message}");
+
+                Log.Logger?.Error(ex, "Failed to save configuration to {Path}", _configFilePath);
             }
             return false; // 保存失败
         }

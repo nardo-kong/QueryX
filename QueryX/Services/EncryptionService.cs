@@ -1,4 +1,5 @@
-﻿using System;
+﻿using QueryX.Logging; // For logging
+using System;
 using System.Security.Cryptography; // For ProtectedData
 using System.Text; // For Encoding
 
@@ -33,6 +34,7 @@ namespace QueryX.Services
             catch (CryptographicException ex)
             {
                 System.Diagnostics.Debug.WriteLine($"DPAPI Encryption failed: {ex.Message}");
+                Log.Logger?.Error(ex, "DPAPI Encryption failed.");
                 // Handle or rethrow as appropriate for your application's error handling strategy
                 throw; // Or return null, or a custom error object
             }
@@ -60,6 +62,7 @@ namespace QueryX.Services
             catch (CryptographicException ex)
             {
                 System.Diagnostics.Debug.WriteLine($"DPAPI Decryption failed: {ex.Message}");
+                Log.Logger?.Error(ex, "DPAPI Decryption failed. This can happen if trying to decrypt on a different machine or as a different user.");
                 // Handle or rethrow. Common issue: trying to decrypt on a different machine or as a different user.
                 // Returning null here indicates decryption failure.
                 return null;
