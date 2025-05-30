@@ -166,18 +166,6 @@ namespace QueryX.ViewModels // Ensure namespace matches your project
             // Option 3 (Pass PasswordBox content via CommandParameter - complex binding):
             // Option 4 (Code-behind helper): ViewModel calls method on View (shown here for simplicity)
             // This requires modifying ConnectionManagerViewModel Save/Test methods slightly.
-            // Example Modification in ConnectionManagerViewModel:
-            /*
-               private void ExecuteSave(object? parameter) {
-                   if (parameter is ConnectionManagerView view && CurrentEditConnection != null) {
-                        CurrentEditConnection.Password = view.GetPassword(); // Call helper method
-                        // ... rest of save logic ...
-                   }
-               }
-               // Update RelayCommand instantiation:
-               SaveCommand = new RelayCommand(ExecuteSave, CanExecuteSave); // Pass view via parameter binding later
-            */
-            // For now, we will ignore password passing and assume it's handled inside the ViewModel/View logic temporarily.
 
 
             // Show the window as a Dialog (waits for it to close)
