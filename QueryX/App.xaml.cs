@@ -70,6 +70,17 @@ namespace QueryX // Ensure namespace matches your project
         protected override void OnExit(ExitEventArgs e)
         {
             Logging.Log.Logger?.Information("Application Shutting Down.");
+
+            // This is a failsafe to catch any in-memory changes before closing.
+            if (MainWindow?.DataContext is MainViewModel mainViewModel)
+            {
+                if (mainViewModel.SaveConfigurationCommand.CanExecute(null))
+                {
+                    mainViewModel.SaveConfigurationCommand.Execute(null);
+                    Logging.Log.Logger?.Information("Final configuration saved on application exit.");
+                }
+            }
+
             Logging.Log.Logger?.Information("=========================================\n");
             base.OnExit(e);
         }

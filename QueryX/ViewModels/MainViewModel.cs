@@ -6,7 +6,8 @@ using System.Collections.ObjectModel; // For ObservableCollection
 using System.Windows.Input; // For ICommand
 using System.Linq; // For .ToList()
 using System.Windows; // For MessageBox (optional)
-using System.Diagnostics; // For Debug (optional)
+using System.Diagnostics;
+using QueryX.Logging; // For Debug (optional)
 
 namespace QueryX.ViewModels // Ensure namespace matches your project
 {
@@ -182,6 +183,7 @@ namespace QueryX.ViewModels // Ensure namespace matches your project
             if (SaveConfigurationCommand.CanExecute(null))
             {
                 SaveConfigurationCommand.Execute(null);
+                Log.Logger?.Information("Configuration automatically saved after closing Connection Manager.");
             }
 
             // Refresh the list in MainViewModel in case the underlying collection was replaced (if not using ObservableCollection directly)
@@ -207,6 +209,7 @@ namespace QueryX.ViewModels // Ensure namespace matches your project
             if (SaveConfigurationCommand.CanExecute(null))
             {
                 SaveConfigurationCommand.Execute(null);
+                Log.Logger?.Information("Configuration automatically saved after closing Query Manager.");
             }
         }
 
