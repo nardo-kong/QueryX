@@ -1,13 +1,15 @@
 ﻿using QueryX.Models; // Reference Models
 using QueryX.Services; // Reference Services
 using QueryX.Helpers; // Reference Helpers (for RelayCommand)
-using QueryX.Views; // Reference Views (if needed)
+using QueryX.Views; // Reference Views
 using System.Collections.ObjectModel; // For ObservableCollection
 using System.Windows.Input; // For ICommand
+using System.IO; // For File operations
 using System.Linq; // For .ToList()
-using System.Windows; // For MessageBox (optional)
+using System.Windows; // For MessageBox
 using System.Diagnostics;
-using QueryX.Logging; // For Debug (optional)
+using Microsoft.Win32; // For OpenFileDialog
+using QueryX.Logging; // For Debug
 
 namespace QueryX.ViewModels // Ensure namespace matches your project
 {
@@ -68,6 +70,9 @@ namespace QueryX.ViewModels // Ensure namespace matches your project
         public ICommand SaveConfigurationCommand { get; }
         public ICommand OpenConnectionManagerCommand { get; }
         public ICommand OpenQueryManagerCommand { get; }
+        public ICommand ImportConfigurationCommand { get; }
+        public ICommand ExportConfigurationCommand { get; }
+        public ICommand ExitApplicationCommand { get; }
         // Add more commands later (Add Connection, Remove Query, Execute Query etc.)
 
         public MainViewModel()
@@ -91,6 +96,10 @@ namespace QueryX.ViewModels // Ensure namespace matches your project
             SaveConfigurationCommand = new RelayCommand(ExecuteSaveConfiguration, CanExecuteSaveConfiguration); // Add CanExecute logic if needed
             OpenConnectionManagerCommand = new RelayCommand(ExecuteOpenConnectionManager);
             OpenQueryManagerCommand = new RelayCommand(ExecuteOpenQueryManager);
+
+            ImportConfigurationCommand = new RelayCommand(ExecuteImportConfiguration);
+            ExportConfigurationCommand = new RelayCommand(ExecuteExportConfiguration);
+            ExitApplicationCommand = new RelayCommand(p => Application.Current.Shutdown());
 
             // Load configuration immediately on creation (alternative: call from App.xaml.cs)
             // ExecuteLoadConfiguration(null); // Commented out - will call from App.xaml.cs for better control
@@ -210,6 +219,74 @@ namespace QueryX.ViewModels // Ensure namespace matches your project
             {
                 SaveConfigurationCommand.Execute(null);
                 Log.Logger?.Information("Configuration automatically saved after closing Query Manager.");
+            }
+        }
+
+        private void ExecuteImportConfiguration(object? parameter)
+        {
+            var ofd = new OpenFileDialog
+            {
+                Filter = "JSON Configuration Files (*.json)|*.json|All files (*.*)|*.*",
+                Title = "Import Configuration File"
+            };
+
+            if (ofd.ShowDialog() == true)
+            {
+                var result = MessageBox.Show(
+                    "This will overwrite your current configuration with the contents of the selected file.\n\nAre you sure you want to proceed?",
+                    "Confirm Import",
+                    MessageBoxButton.YesNo,
+                    MessageBoxImage.Warning);
+
+                if (result == MessageBoxResult.Yes)
+                {
+                    try
+                    {
+                        string configFilePath = _configurationManager.GetConfigFilePath();
+                        // Overwrite the config file in AppData with the selected file
+                        File.Copy(ofd.FileName, configFilePath, true);
+                        Log.Logger?.Information("Importing configuration from {SourcePath}", ofd.FileName);
+
+                        // Reload the configuration into the application
+                        ExecuteLoadConfiguration(null);
+
+                        MessageBox.Show("Configuration imported successfully!", "Import Complete", MessageBoxButton.OK, MessageBoxImage.Information);
+                    }
+                    catch (Exception ex)
+                    {
+                        Log.Logger?.Error(ex, "Failed to import configuration from {SourcePath}", ofd.FileName);
+                        MessageBox.Show($"Failed to import configuration.\n\nError: {ex.Message}", "Import Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                    }
+                }
+            }
+        }
+
+        private void ExecuteExportConfiguration(object? parameter)
+        {
+            var sfd = new SaveFileDialog
+            {
+                Filter = "JSON Configuration File (*.json)|*.json",
+                FileName = $"QueryX_Backup_{DateTime.Now:yyyyMMdd}.json",
+                Title = "Export Configuration File"
+            };
+
+            if (sfd.ShowDialog() == true)
+            {
+                try
+                {
+                    // First, ensure the current in-memory state is saved to the AppData file
+                    ExecuteSaveConfiguration(null);
+                    // Now, copy that file to the user's chosen location
+                    string configFilePath = _configurationManager.GetConfigFilePath();
+                    File.Copy(configFilePath, sfd.FileName, true);
+                    Log.Logger?.Information("Configuration exported successfully to {DestinationPath}", sfd.FileName);
+                    MessageBox.Show($"Configuration exported successfully to:\n{sfd.FileName}", "Export Complete", MessageBoxButton.OK, MessageBoxImage.Information);
+                }
+                catch (Exception ex)
+                {
+                    Log.Logger?.Error(ex, "Failed to export configuration to {DestinationPath}", sfd.FileName);
+                    MessageBox.Show($"Failed to export configuration.\n\nError: {ex.Message}", "Export Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                }
             }
         }
 
