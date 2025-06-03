@@ -28,7 +28,27 @@ namespace QueryX.ViewModels // Ensure namespace matches your project
         // Collections exposed to the View for binding
         // Use ObservableCollection<T> so the UI updates automatically when items are added/removed
         public ObservableCollection<DatabaseConnectionInfo> Connections { get; private set; }
-        public ObservableCollection<QueryDefinition> Queries { get; private set; }
+
+        //old queries list
+        //public ObservableCollection<QueryDefinition> Queries { get; private set; }
+        public ObservableCollection<QueryTreeNodeViewModel> QueryTree { get; private set; } = new ObservableCollection<QueryTreeNodeViewModel>();
+        public ObservableCollection<QueryDefinition> AllFlatQueries { get; private set; } = new ObservableCollection<QueryDefinition>();
+
+        // This property will be bound to the TreeView's selected item, but we only care if it's a query node
+        private QueryTreeNodeViewModel? _selectedQueryTreeNode;
+        public QueryTreeNodeViewModel? SelectedQueryTreeNode
+        {
+            get => _selectedQueryTreeNode;
+            set
+            {
+                if (SetProperty(ref _selectedQueryTreeNode, value))
+                {
+                    // When a tree node is selected, update the actual SelectedQueryDefinition
+                    // and then the CurrentQueryExecution context
+                    SelectedQuery = _selectedQueryTreeNode?.Query;
+                }
+            }
+        }
 
         private QueryDefinition? _selectedQuery;
         public QueryDefinition? SelectedQuery
@@ -75,6 +95,7 @@ namespace QueryX.ViewModels // Ensure namespace matches your project
         public ICommand ExitApplicationCommand { get; }
         // Add more commands later (Add Connection, Remove Query, Execute Query etc.)
 
+        // --- Constructor ---
         public MainViewModel()
         {
             _configurationManager = new ConfigurationManager();
@@ -89,7 +110,7 @@ namespace QueryX.ViewModels // Ensure namespace matches your project
 
             // Initialize observable collections
             Connections = new ObservableCollection<DatabaseConnectionInfo>();
-            Queries = new ObservableCollection<QueryDefinition>();
+            //Queries = new ObservableCollection<QueryDefinition>();
 
             // Initialize commands using RelayCommand
             LoadConfigurationCommand = new RelayCommand(ExecuteLoadConfiguration);
@@ -113,7 +134,7 @@ namespace QueryX.ViewModels // Ensure namespace matches your project
 
             // Clear existing collections before loading
             Connections.Clear();
-            Queries.Clear();
+            //Queries.Clear();
 
             // Populate ObservableCollections from loaded configuration
             // Order them for consistent display (optional)
@@ -121,12 +142,17 @@ namespace QueryX.ViewModels // Ensure namespace matches your project
             {
                 Connections.Add(conn);
             }
+
+            /*
             foreach (var query in _appConfig.Queries.OrderBy(q => q.Name))
             {
                 Queries.Add(query);
             }
-            System.Diagnostics.Debug.WriteLine($"Configuration loaded. Connections: {Connections.Count}, Queries: {Queries.Count}");
-            System.Diagnostics.Debug.WriteLine($"Config file path: {_configurationManager.GetConfigFilePath()}");
+            */
+            BuildQueryTree(_appConfig.Queries);
+
+            Debug.WriteLine($"Configuration loaded. Connections: {Connections.Count}");
+            Debug.WriteLine($"Config file path: {_configurationManager.GetConfigFilePath()}");
         }
 
         private void ExecuteSaveConfiguration(object? parameter)
@@ -134,13 +160,13 @@ namespace QueryX.ViewModels // Ensure namespace matches your project
             // Update the _appConfig object from the ObservableCollections before saving
             // This ensures any changes made via the UI (add/remove/edit) are persisted
             _appConfig.Connections = Connections.ToList();
-            _appConfig.Queries = Queries.ToList();
+            //_appConfig.Queries = Queries.ToList();
 
             bool success = _configurationManager.SaveConfiguration(_appConfig);
 
             if (success)
             {
-                System.Diagnostics.Debug.WriteLine("Configuration saved successfully.");
+                Debug.WriteLine("Configuration saved successfully.");
                 // Optionally show a status message to the user
             }
             else
@@ -154,7 +180,8 @@ namespace QueryX.ViewModels // Ensure namespace matches your project
         {
             // Example: Only allow saving if there's something to save
             // Or, implement more complex logic based on application state (e.g., IsDirty flag)
-            return Connections.Any() || Queries.Any(); // Enable save if there are connections or queries
+            //return Connections.Any() || Queries.Any(); // Enable save if there are connections or queries
+            return Connections.Any();
         }
 
         private void ExecuteOpenConnectionManager(object? parameter)
@@ -203,7 +230,7 @@ namespace QueryX.ViewModels // Ensure namespace matches your project
         {
             // Pass the shared Queries collection and SqlParser (optional)
             var queryManagerViewModel = new QueryManagerViewModel(
-                this.Queries, this.Connections, _databaseService, _sqlValidationService,
+                this.AllFlatQueries, this.Connections, _databaseService, _sqlValidationService,
                 _encryptionService /*, _sqlParser */);
 
             var queryManagerView = new QueryManagerView
@@ -300,15 +327,49 @@ namespace QueryX.ViewModels // Ensure namespace matches your project
 
         public void AddQuery(QueryDefinition newQuery)
         {
-            Queries.Add(newQuery);
+            //Queries.Add(newQuery);
             // Optionally trigger save or set an IsDirty flag
         }
 
-        // --- Add Helper Method ---
-        /// <summary>
-        /// Creates or clears the CurrentQueryExecution ViewModel based on
-        /// the currently selected Query and Connection.
-        /// </summary>
+        private void BuildQueryTree(IEnumerable<QueryDefinition> flatQueries)
+        {
+            QueryTree.Clear();
+            AllFlatQueries.Clear(); // Clear and repopulate the flat list too
+
+            var rootNodes = new Dictionary<string, QueryTreeNodeViewModel>(StringComparer.OrdinalIgnoreCase);
+            var allQueries = flatQueries.OrderBy(q => q.FolderPath ?? "").ThenBy(q => q.Name).ToList();
+
+            foreach (var query in allQueries)
+            {
+                AllFlatQueries.Add(query); // Keep the flat list in sync
+
+                if (string.IsNullOrWhiteSpace(query.FolderPath))
+                {
+                    QueryTree.Add(new QueryTreeNodeViewModel(query)); // Add to root of TreeView
+                }
+                else
+                {
+                    string[] pathParts = query.FolderPath.Split(new[] { '/', '\\' }, StringSplitOptions.RemoveEmptyEntries);
+                    QueryTreeNodeViewModel currentNodeLevel = null;
+
+                    // Find/create path in QueryTree
+                    if (!rootNodes.TryGetValue(pathParts[0], out currentNodeLevel))
+                    {
+                        currentNodeLevel = new QueryTreeNodeViewModel(pathParts[0]);
+                        QueryTree.Add(currentNodeLevel);
+                        rootNodes[pathParts[0]] = currentNodeLevel;
+                    }
+
+                    for (int i = 1; i < pathParts.Length; i++)
+                    {
+                        currentNodeLevel = currentNodeLevel.GetOrAddChildFolder(pathParts[i]);
+                    }
+                    currentNodeLevel.Children.Add(new QueryTreeNodeViewModel(query));
+                }
+            }
+        }
+
+        // Creates or clears the CurrentQueryExecution ViewModel based on the currently selected Query and Connection.
         private void UpdateCurrentQueryExecution()
         {
             if (SelectedQuery != null)

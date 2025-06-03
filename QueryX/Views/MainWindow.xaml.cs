@@ -1,4 +1,5 @@
-﻿using System.Text;
+﻿using QueryX.ViewModels;
+using System.Text;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Data;
@@ -19,6 +20,14 @@ namespace QueryX.Views
         public MainWindow()
         {
             InitializeComponent();
+        }
+
+        private void QueriesTreeView_SelectedItemChanged(object sender, RoutedPropertyChangedEventArgs<object> e)
+        {
+            if (this.DataContext is MainViewModel mainViewModel && e.NewValue is QueryTreeNodeViewModel selectedNode)
+            {
+                mainViewModel.SelectedQueryTreeNode = selectedNode;
+            }
         }
     }
 }

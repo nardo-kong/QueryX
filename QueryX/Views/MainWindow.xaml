@@ -7,6 +7,7 @@
         xmlns:vm="clr-namespace:QueryX.ViewModels"
         xmlns:models="clr-namespace:QueryX.Models"
         xmlns:conv="clr-namespace:QueryX.Converters"
+        xmlns:iconPacks="http://metro.mahapps.com/winfx/xaml/iconpacks"
         xmlns:sel="clr-namespace:QueryX.Selectors"
         mc:Ignorable="d"
         Title="QueryX - SQL Query Tool" Height="600" Width="900"
@@ -194,6 +195,37 @@
             </Grid>
         </DataTemplate>
 
+        <HierarchicalDataTemplate DataType="{x:Type vm:QueryTreeNodeViewModel}" ItemsSource="{Binding Children}">
+            <StackPanel Orientation="Horizontal">
+                <ContentControl Margin="0,0,5,0" Width="16" Height="16">
+                    <ContentControl.Style>
+                        <Style TargetType="ContentControl">
+                            <Setter Property="ContentTemplate">
+                                <Setter.Value>
+                                    <DataTemplate>
+                                        <iconPacks:PackIconMaterial Kind="FileDocumentOutline" Width="16" Height="16" Foreground="Gray"/>
+                                    </DataTemplate>
+                                </Setter.Value>
+                            </Setter>
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding IsFolder}" Value="True">
+                                    <Setter Property="ContentTemplate">
+                                        <Setter.Value>
+                                            <DataTemplate>
+                                                <iconPacks:PackIconMaterial Kind="Folder" Width="16" Height="16" Foreground="Gray"/>
+                                            </DataTemplate>
+                                        </Setter.Value>
+                                    </Setter>
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </ContentControl.Style>
+                </ContentControl>
+
+                <TextBlock Text="{Binding Name}" VerticalAlignment="Center" />
+            </StackPanel>
+
+        </HierarchicalDataTemplate>
 
     </Window.Resources>
     <DockPanel>
@@ -225,10 +257,11 @@
             <TextBlock Grid.Row="0" Grid.Column="0" Text="Available Queries" FontWeight="Bold" Margin="0,0,0,5"/>
             <TextBlock Grid.Row="0" Grid.Column="1" Text="Query Execution" FontWeight="Bold" Margin="5,0,0,5"/>
 
-            <ListBox Grid.Row="1" Grid.Column="0"
-             ItemsSource="{Binding Queries}"
-             SelectedItem="{Binding SelectedQuery}"
-             DisplayMemberPath="Name" />
+            <TreeView Grid.Row="1" Grid.Column="0"
+                      ItemsSource="{Binding QueryTree}"
+                      SelectedItemChanged="QueriesTreeView_SelectedItemChanged">
+            </TreeView>
+
             <Grid Grid.Row="1" Grid.Column="1" Margin="5,0,0,0">
                 <ContentControl Content="{Binding CurrentQueryExecution}">
                     <ContentControl.Resources>

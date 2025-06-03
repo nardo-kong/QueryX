@@ -109,8 +109,8 @@ namespace QueryX.ViewModels
         public ObservableCollection<QueryDefinition> Queries { get; }
 
         // For ComboBox in DataGrid - list of ParameterDataType enum values
-        public IEnumerable<ParameterDataType> ParameterDataTypes => Enum.GetValues(typeof(ParameterDataType)).Cast<ParameterDataType>();
-
+        //public IEnumerable<ParameterDataType> ParameterDataTypes => Enum.GetValues(typeof(ParameterDataType)).Cast<ParameterDataType>();
+        public ParameterDataType[] ParameterDataTypes => Enum.GetValues(typeof(ParameterDataType)).Cast<ParameterDataType>().ToArray(); // NEW: Convert to array
 
         // Commands
         public ICommand AddNewQueryCommand { get; }
@@ -321,6 +321,7 @@ namespace QueryX.ViewModels
                 // Apply changes from EditingQueryCopy to SelectedQueryInList
                 SelectedQueryInList.Name = EditingQueryCopy.Name;
                 SelectedQueryInList.Description = EditingQueryCopy.Description;
+                SelectedQueryInList.FolderPath = EditingQueryCopy.FolderPath;
                 SelectedQueryInList.SqlTemplates = new ObservableCollection<SqlTemplateEditable>(EditingQueryCopy.SqlTemplates.Select(st => new SqlTemplateEditable(st.SqlText)));
                 SelectedQueryInList.Parameters = new ObservableCollection<ParameterDefinition>(EditingQueryCopy.Parameters.Select(p => new ParameterDefinition
                 { // Again, simple copy. Consider a true Clone method on ParameterDefinition if it gets complex.

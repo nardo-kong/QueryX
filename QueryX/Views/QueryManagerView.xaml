@@ -4,8 +4,11 @@
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         xmlns:vm="clr-namespace:QueryX.ViewModels"
-        xmlns:conv="clr-namespace:QueryX.Converters" mc:Ignorable="d"
+        xmlns:conv="clr-namespace:QueryX.Converters"
         xmlns:models="clr-namespace:QueryX.Models"
+        xmlns:helpers="clr-namespace:QueryX.Helpers"
+        mc:Ignorable="d"
+        x:Name="QueryManagerWindow"
         Title="Query Manager" Height="600" Width="800"
         WindowStartupLocation="CenterOwner"
         d:DataContext="{d:DesignInstance Type=vm:QueryManagerViewModel, IsDesignTimeCreatable=False}">
@@ -41,10 +44,7 @@
         </Grid>
 
         <ScrollViewer Grid.Column="1" Margin="15,0,0,0" VerticalScrollBarVisibility="Auto">
-            <GroupBox Header="Query Details" IsEnabled="{Binding EditingQueryCopy, Converter={StaticResource NullToFalseConverter}}">
-                <GroupBox.DataContext>
-                    <Binding Path="EditingQueryCopy"/>
-                </GroupBox.DataContext>
+            <GroupBox Header="Query Details" DataContext="{Binding EditingQueryCopy}" IsEnabled="{Binding Converter={StaticResource NullToFalseConverter}}">
                 <DockPanel>
                     <StackPanel DockPanel.Dock="Bottom" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,10,0,0">
                         <Button Content="Save Changes" Command="{Binding DataContext.SaveQueryCommand, RelativeSource={RelativeSource AncestorType=Window}}" Margin="5" Padding="10,5" FontWeight="Bold"/>
@@ -59,6 +59,10 @@
                                 <StackPanel>
                                     <TextBlock Text="Query Name:" />
                                     <TextBox Text="{Binding Name, UpdateSourceTrigger=PropertyChanged}" Margin="0,0,0,10"/>
+                                    
+                                    <TextBlock Text="Folder Path (e.g., Category/SubCategory):" />
+                                    <TextBox Text="{Binding FolderPath, UpdateSourceTrigger=PropertyChanged, TargetNullValue=''}" Margin="0,2,0,10"/>
+                                    
                                     <TextBlock Text="Description (Optional):" />
                                     <TextBox Text="{Binding Description, UpdateSourceTrigger=PropertyChanged, TargetNullValue=''}"
                                          AcceptsReturn="True" TextWrapping="Wrap" MinHeight="60" MaxHeight="120"
@@ -118,8 +122,8 @@
                                             <DataGridTextColumn Header="Placeholder" Binding="{Binding PlaceholderName, UpdateSourceTrigger=PropertyChanged}" Width="*"/>
                                             <DataGridTextColumn Header="Display Name" Binding="{Binding DisplayName, UpdateSourceTrigger=PropertyChanged}" Width="*"/>
                                             <DataGridComboBoxColumn Header="Data Type" Width="*"
-                                            SelectedItemBinding="{Binding DataType, UpdateSourceTrigger=PropertyChanged}"
-                                            ItemsSource="{Binding DataContext.ParameterDataTypes, RelativeSource={RelativeSource AncestorType=Window}}"/>
+                                                                    SelectedItemBinding="{Binding DataType, UpdateSourceTrigger=PropertyChanged}"
+                                                                    ItemsSource="{x:Static helpers:EnumItemsSource.ParameterDataTypes}"/>
                                             <DataGridCheckBoxColumn Header="Required?" Binding="{Binding IsRequired, UpdateSourceTrigger=PropertyChanged}" Width="Auto"/>
                                             <DataGridTextColumn Header="Default" Binding="{Binding DefaultValue, TargetNullValue='', UpdateSourceTrigger=PropertyChanged}" Width="Auto"/>
                                             <DataGridTextColumn Header="List Options (CSV)" Binding="{Binding ValueListOptionsString, UpdateSourceTrigger=PropertyChanged}" Width="1.5*"/>

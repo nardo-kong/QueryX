@@ -30,6 +30,10 @@ namespace QueryX.Models // 确保命名空间正确
         // 此查询所需参数的定义列表
         public ObservableCollection<ParameterDefinition> Parameters { get; set; } = new ObservableCollection<ParameterDefinition>();
 
+        // Represents the folder path for organizing queries, e.g., "Category/SubCategory".
+        // If null or empty, the query is at the root level.
+        public string? FolderPath { get; set; }
+
         public override string ToString()
         {
             return string.IsNullOrWhiteSpace(Name) ? $"New Query ({Id})" : Name;
