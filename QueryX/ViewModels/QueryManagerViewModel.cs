@@ -201,10 +201,22 @@ namespace QueryX.ViewModels
             ValidationConnections.Clear();
             var currentlySelectedValidationConnection = ValidationConnection;
 
-            foreach (var connVM in AvailableConnectionsForTargeting.Where(c => c.IsSelected))
+            if (EditingQueryCopy != null && EditingQueryCopy.TargetConnectionIds.Any())
             {
-                var fullConnInfo = _allConfiguredConnections.FirstOrDefault(c => c.Id == connVM.ConnectionId);
-                if (fullConnInfo != null) ValidationConnections.Add(fullConnInfo);
+                // The query has specific target connections defined; use those for validation options.
+                foreach (var connVM in AvailableConnectionsForTargeting.Where(c => c.IsSelected))
+                {
+                    var fullConnInfo = _allConfiguredConnections.FirstOrDefault(c => c.Id == connVM.ConnectionId);
+                    if (fullConnInfo != null) ValidationConnections.Add(fullConnInfo);
+                }
+            } 
+            else
+            {
+                // No specific target connections defined for the query, so offer all configured connections for validation.
+                foreach (var fullConnInfo in _allConfiguredConnections.OrderBy(c => c.ConnectionName))
+                {
+                    ValidationConnections.Add(fullConnInfo);
+                }
             }
 
             // Try to re-select the previously selected validation connection
@@ -233,6 +245,7 @@ namespace QueryX.ViewModels
                 Id = queryToEdit.Id,
                 Name = queryToEdit.Name,
                 Description = queryToEdit.Description,
+                FolderPath = queryToEdit.FolderPath,
                 SqlTemplates = new ObservableCollection<SqlTemplateEditable>(queryToEdit.SqlTemplates.Select(st => new SqlTemplateEditable(st.SqlText))),
                 Parameters = new ObservableCollection<ParameterDefinition>(queryToEdit.Parameters.Select(p => new ParameterDefinition // Simple shallow copy for ParameterDefinition for now
                 {
