@@ -1,5 +1,6 @@
 ﻿using System.ComponentModel; // 需要引入此命名空间
 using System.Runtime.CompilerServices; // 需要引入此命名空间
+using System.Collections.Generic;
 
 namespace QueryX.ViewModels // 确保命名空间与你的项目名称匹配
 {
@@ -8,6 +9,16 @@ namespace QueryX.ViewModels // 确保命名空间与你的项目名称匹配
     // INotifyPropertyChanged 接口是 WPF 数据绑定更新的关键
     public abstract class ViewModelBase : INotifyPropertyChanged
     {
+        private bool _isDirty;
+
+        /// <summary>
+        /// Indicates whether the view model has unsaved changes
+        /// </summary>
+        public virtual bool IsDirty
+        {
+            get => _isDirty;
+            protected set => SetProperty(ref _isDirty, value);
+        }
         // 当 ViewModel 的属性值发生变化时，会触发此事件
         // UI 元素会监听这个事件，以便更新显示
         public event PropertyChangedEventHandler? PropertyChanged;
@@ -42,6 +53,35 @@ namespace QueryX.ViewModels // 确保命名空间与你的项目名称匹配
             OnPropertyChanged(propertyName);
             // 返回 true 表示属性值已更改
             return true;
+        }
+
+        /// <summary>
+        /// Sets a property value and marks the view model as dirty if the value changes
+        /// </summary>
+        protected virtual bool SetPropertyWithDirtyTracking<T>(ref T field, T value, [CallerMemberName] string? propertyName = null)
+        {
+            if (SetProperty(ref field, value, propertyName))
+            {
+                IsDirty = true;
+                return true;
+            }
+            return false;
+        }
+
+        /// <summary>
+        /// Resets the dirty state to false
+        /// </summary>
+        protected virtual void ResetDirtyState()
+        {
+            IsDirty = false;
+        }
+
+        /// <summary>
+        /// Manually sets the dirty state
+        /// </summary>
+        protected virtual void SetDirtyState()
+        {
+            IsDirty = true;
         }
     }
 }
