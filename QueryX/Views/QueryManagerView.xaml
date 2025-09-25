@@ -9,12 +9,19 @@
         xmlns:helpers="clr-namespace:QueryX.Helpers"
         mc:Ignorable="d"
         x:Name="QueryManagerWindow"
-        Title="Query Manager" Height="600" Width="800"
+        Height="600" Width="800"
         WindowStartupLocation="CenterOwner"
         d:DataContext="{d:DesignInstance Type=vm:QueryManagerViewModel, IsDesignTimeCreatable=False}">
+    
+    <Window.Title>
+        <MultiBinding StringFormat="Query Manager{0}">
+            <Binding Path="IsDirty" Converter="{StaticResource BooleanToAsteriskConverter}" />
+        </MultiBinding>
+    </Window.Title>
 
     <Window.Resources>
         <conv:NullToFalseConverter x:Key="NullToFalseConverter" />
+        <conv:BooleanToAsteriskConverter x:Key="BooleanToAsteriskConverter" />
     </Window.Resources>
 
     <Grid Margin="15">

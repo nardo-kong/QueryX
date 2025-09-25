@@ -83,5 +83,13 @@ namespace QueryX.ViewModels // 确保命名空间与你的项目名称匹配
         {
             IsDirty = true;
         }
+
+        /// <summary>
+        /// Public method to mark dirty state - can be called from UI controls
+        /// </summary>
+        public virtual void MarkDirty()
+        {
+            IsDirty = true;
+        }
     }
 }
