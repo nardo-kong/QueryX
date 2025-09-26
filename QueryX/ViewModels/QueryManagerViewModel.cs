@@ -137,6 +137,7 @@ namespace QueryX.ViewModels
         public ICommand RemoveLastSqlTemplateCommand { get; }
         public ICommand AddParameterCommand { get; }
         public ICommand RemoveSelectedParameterCommand { get; }
+        public ICommand LoadParameterOptionsCommand { get; }
         public ICommand CheckSyntaxCommand { get; }
         public ICommand CloseWindowCommand { get; } // To close the window
 
@@ -165,6 +166,7 @@ namespace QueryX.ViewModels
 
             AddParameterCommand = new RelayCommand(ExecuteAddParameter, CanExecuteSelectedQueryCommands);
             RemoveSelectedParameterCommand = new RelayCommand(ExecuteRemoveSelectedParameter, CanExecuteRemoveSelectedParameter);
+            LoadParameterOptionsCommand = new RelayCommand(async _ => await ExecuteLoadParameterOptionsAsync(), CanExecuteSelectedQueryCommands);
 
             CheckSyntaxCommand = new RelayCommand<SqlTemplateEditable>(async (template) => await ExecuteCheckSyntaxAsync(template), (template) => EditingQueryCopy != null && template != null && ValidationConnection != null);
 
@@ -632,6 +634,23 @@ namespace QueryX.ViewModels
             foreach (var parameter in listParameters)
             {
                 await LoadParameterOptionsAsync(parameter);
+            }
+        }
+
+        /// <summary>
+        /// Command handler for loading parameter options
+        /// </summary>
+        private async Task ExecuteLoadParameterOptionsAsync()
+        {
+            try
+            {
+                StatusMessage = "Loading parameter options...";
+                await LoadParameterOptionsAsync();
+                StatusMessage = "Parameter options loaded successfully.";
+            }
+            catch (Exception ex)
+            {
+                StatusMessage = $"Failed to load parameter options: {ex.Message}";
             }
         }
 
