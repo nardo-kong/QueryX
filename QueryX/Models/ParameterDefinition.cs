@@ -72,18 +72,6 @@ namespace QueryX.Models // 确保命名空间正确
 
         // For DataType = List, this holds the predefined string options.
         private List<string>? _valueListOptions = new List<string>();
-        public List<string>? ValueListOptions
-        {
-            get => _valueListOptions;
-            set
-            {
-                 if (SetProperty(ref _valueListOptions, value))
-                {
-                    // Notify that the string representation has changed when options are set
-                    OnPropertyChanged(nameof(ValueListOptionsString));
-                }
-            }
-        }
         public List<string>? ValueListOptions 
         { 
             get => _valueListOptions;

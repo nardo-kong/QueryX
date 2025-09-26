@@ -9,6 +9,7 @@ using System.Windows.Input;
 using System.Threading.Tasks;
 using System.Diagnostics; // For async Task
 using System.Security.Cryptography;
+using System.Windows; // For MessageBox
 
 namespace QueryX.ViewModels
 {
