@@ -14,18 +14,18 @@
         FocusManager.FocusedElement="{Binding ElementName=txtConnectionName}"
         d:DataContext="{d:DesignInstance Type=vm:ConnectionManagerViewModel, IsDesignTimeCreatable=False}">
     
-    <Window.Title>
-        <MultiBinding StringFormat="Connection Manager{0}">
-            <Binding Path="IsDirty" Converter="{StaticResource BooleanToAsteriskConverter}" />
-        </MultiBinding>
-    </Window.Title>
-    
     <Window.Resources>
         <BooleanToVisibilityConverter x:Key="BoolToVisibilityConverter"/>
         <conv:InverseBoolConverter x:Key="InverseBoolConverter"/>
         <conv:NullToFalseConverter x:Key="NullToFalseConverter"/>
         <conv:BooleanToAsteriskConverter x:Key="BooleanToAsteriskConverter" />
     </Window.Resources>
+    
+    <Window.Title>
+        <MultiBinding StringFormat="Connection Manager{0}">
+            <Binding Path="IsDirty" Converter="{StaticResource BooleanToAsteriskConverter}" />
+        </MultiBinding>
+    </Window.Title>
     
     <Grid Margin="15">
         <Grid.ColumnDefinitions>
