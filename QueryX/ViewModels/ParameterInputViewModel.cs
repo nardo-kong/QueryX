@@ -1,4 +1,7 @@
 ﻿using QueryX.Models; // Reference Models
+using QueryX.Services; // Reference Services
+using System.Text.Json.Serialization;
+using System.Linq;
 
 namespace QueryX.ViewModels // Ensure namespace matches
 {
@@ -26,6 +29,45 @@ namespace QueryX.ViewModels // Ensure namespace matches
 
         public IEnumerable<string> OptionsForList => Definition.ValueListOptions ?? Enumerable.Empty<string>();
 
+        // Options for dynamic lists loaded from SQL queries
+        public IEnumerable<ListOption> DynamicOptionsForList => Definition.LoadedListOptions ?? Enumerable.Empty<ListOption>();
+
+        // Combined property that returns appropriate options based on parameter configuration
+        [JsonIgnore]
+        public IEnumerable<object> AllOptionsForList
+        {
+            get
+            {
+                if (Definition.UsesSqlForOptions && Definition.LoadedListOptions?.Any() == true)
+                {
+                    return Definition.LoadedListOptions;
+                }
+                else if (Definition.ValueListOptions?.Any() == true)
+                {
+                    return Definition.ValueListOptions.Select(opt => new ListOption(opt));
+                }
+                return Enumerable.Empty<object>();
+            }
+        }
+
+        // Indicates if options are currently being loaded
+        private bool _isLoadingOptions;
+        [JsonIgnore]
+        public bool IsLoadingOptions
+        {
+            get => _isLoadingOptions;
+            set => SetProperty(ref _isLoadingOptions, value);
+        }
+
+        // Error message specific to option loading
+        private string? _optionLoadingError;
+        [JsonIgnore]
+        public string? OptionLoadingError
+        {
+            get => _optionLoadingError;
+            set => SetProperty(ref _optionLoadingError, value);
+        }
+
         public string? ErrorMessage
         {
             get => _errorMessage;
@@ -38,15 +80,36 @@ namespace QueryX.ViewModels // Ensure namespace matches
             Definition = definition ?? throw new ArgumentNullException(nameof(definition));
 
             // Set default value
-            if (definition.DataType == ParameterDataType.List && definition.ValueListOptions?.Any() == true)
+            if (definition.DataType == ParameterDataType.List)
             {
-                // For Lists, check if default value is in the list, otherwise use the first item or null
-                string? defaultStr = definition.DefaultValue?.ToString();
-                _value = definition.ValueListOptions.Contains(defaultStr) ? defaultStr : definition.ValueListOptions.FirstOrDefault();
+                SetDefaultValueForList();
             }
             else
             {
                 _value = definition.DefaultValue;
+            }
+        }
+
+        private void SetDefaultValueForList()
+        {
+            string? defaultStr = Definition.DefaultValue?.ToString();
+
+            if (Definition.UsesSqlForOptions && Definition.LoadedListOptions?.Any() == true)
+            {
+                // Check if default value matches any loaded option
+                var matchingOption = Definition.LoadedListOptions.FirstOrDefault(opt => 
+                    string.Equals(opt.Value, defaultStr, StringComparison.OrdinalIgnoreCase));
+                
+                _value = matchingOption?.Value ?? Definition.LoadedListOptions.FirstOrDefault()?.Value;
+            }
+            else if (Definition.ValueListOptions?.Any() == true)
+            {
+                // For static lists, check if default value is in the list
+                _value = Definition.ValueListOptions.Contains(defaultStr) ? defaultStr : Definition.ValueListOptions.FirstOrDefault();
+            }
+            else
+            {
+                _value = null;
             }
         }
 
@@ -91,6 +154,40 @@ namespace QueryX.ViewModels // Ensure namespace matches
             validationMessage = null;
             ErrorMessage = null; // Clear any previous error
             return true;
+        }
+
+        /// <summary>
+        /// Loads dynamic options for list parameters that use SQL queries
+        /// </summary>
+        public async Task LoadDynamicOptionsAsync(ParameterOptionsService optionsService, DatabaseConnectionInfo connectionInfo)
+        {
+            if (Definition.DataType != ParameterDataType.List || !Definition.UsesSqlForOptions)
+                return;
+
+            IsLoadingOptions = true;
+            OptionLoadingError = null;
+
+            try
+            {
+                var options = await optionsService.LoadParameterOptionsAsync(Definition, connectionInfo);
+                Definition.LoadedListOptions = options;
+                
+                // Update the current value if needed
+                SetDefaultValueForList();
+                
+                // Notify that options have changed
+                OnPropertyChanged(nameof(AllOptionsForList));
+                OnPropertyChanged(nameof(DynamicOptionsForList));
+            }
+            catch (Exception ex)
+            {
+                OptionLoadingError = $"Failed to load options: {ex.Message}";
+                Definition.LoadedListOptions = new List<ListOption>();
+            }
+            finally
+            {
+                IsLoadingOptions = false;
+            }
         }
 
     }

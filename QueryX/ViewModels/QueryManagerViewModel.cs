@@ -16,6 +16,7 @@ namespace QueryX.ViewModels
         private readonly DatabaseService _databaseService;
         private readonly SqlValidationService _sqlValidationService;
         private readonly EncryptionService _encryptionService;
+        private readonly ParameterOptionsService _parameterOptionsService;
 
 
         private QueryDefinition? _selectedQueryInList;
@@ -143,7 +144,7 @@ namespace QueryX.ViewModels
         public QueryManagerViewModel(ObservableCollection<QueryDefinition> queries,
             ObservableCollection<DatabaseConnectionInfo> allConfiguredConnections,
             DatabaseService databaseService, SqlValidationService sqlValidationService,
-            EncryptionService encryptionService /*, SqlParser sqlParser - optional */)
+            EncryptionService encryptionService, ParameterOptionsService parameterOptionsService)
         {
             Queries = queries ?? throw new ArgumentNullException(nameof(queries));
             _allConfiguredConnections = allConfiguredConnections ?? throw new ArgumentNullException(nameof(allConfiguredConnections));
@@ -151,7 +152,7 @@ namespace QueryX.ViewModels
             _databaseService = databaseService;
             _sqlValidationService = sqlValidationService;
             _encryptionService = encryptionService;
-            // _sqlParser = sqlParser; // Optional
+            _parameterOptionsService = parameterOptionsService;
 
             AddNewQueryCommand = new RelayCommand(ExecuteAddNewQuery);
             DeleteSelectedQueryCommand = new RelayCommand(ExecuteDeleteSelectedQuery, CanExecuteDeleteSelectedQuery);
@@ -614,6 +615,60 @@ namespace QueryX.ViewModels
             {
                 window?.Close();
             }
+        }
+
+        /// <summary>
+        /// Loads dynamic options for all List parameters that use SQL queries
+        /// </summary>
+        public async Task LoadParameterOptionsAsync()
+        {
+            if (EditingQueryCopy?.Parameters == null)
+                return;
+
+            var listParameters = EditingQueryCopy.Parameters
+                .Where(p => p.DataType == ParameterDataType.List && p.UsesSqlForOptions)
+                .ToList();
+
+            foreach (var parameter in listParameters)
+            {
+                await LoadParameterOptionsAsync(parameter);
+            }
+        }
+
+        /// <summary>
+        /// Loads dynamic options for a specific parameter
+        /// </summary>
+        public async Task LoadParameterOptionsAsync(ParameterDefinition parameter)
+        {
+            if (parameter == null || !parameter.UsesSqlForOptions)
+                return;
+
+            // Find the connection to use
+            var connectionInfo = _allConfiguredConnections.FirstOrDefault(c => c.Id == parameter.ListOptionsConnectionId);
+            if (connectionInfo == null)
+            {
+                // Could set an error message on the parameter or show a notification
+                return;
+            }
+
+            try
+            {
+                var options = await _parameterOptionsService.LoadParameterOptionsAsync(parameter, connectionInfo);
+                parameter.LoadedListOptions = options;
+            }
+            catch (Exception ex)
+            {
+                // Handle error - could log or show user notification
+                StatusMessage = $"Failed to load options for {parameter.DisplayName}: {ex.Message}";
+            }
+        }
+
+        /// <summary>
+        /// Validates a parameter's SQL query configuration
+        /// </summary>
+        public (bool IsValid, string? ErrorMessage) ValidateParameterConfiguration(ParameterDefinition parameter)
+        {
+            return _parameterOptionsService.ValidateParameterConfiguration(parameter);
         }
 
     }
