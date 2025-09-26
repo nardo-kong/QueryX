@@ -2,19 +2,38 @@
 using System.Collections.Generic;
 using System.Linq; // 需要引入 Linq
 using System.Collections.ObjectModel;
+using QueryX.ViewModels; // For ViewModelBase
 
 namespace QueryX.Models // 确保命名空间正确
 {
-    public class QueryDefinition
+    public class QueryDefinition : ViewModelBase
     {
+        private Guid _id = Guid.NewGuid();
+        private string _name = string.Empty;
+        private string? _description;
+        private List<Guid> _targetConnectionIds = new List<Guid>();
+        private string? _folderPath;
+
         // 唯一标识符
-        public Guid Id { get; set; } = Guid.NewGuid();
+        public Guid Id 
+        { 
+            get => _id;
+            set => SetProperty(ref _id, value);
+        }
 
         // 用户定义的查询名称 (例如: "查询活跃用户", "按订单号查找商品")
-        public string Name { get; set; } = string.Empty;
+        public string Name 
+        { 
+            get => _name;
+            set => SetProperty(ref _name, value);
+        }
 
         // 对查询功能的描述
-        public string? Description { get; set; }
+        public string? Description 
+        { 
+            get => _description;
+            set => SetProperty(ref _description, value);
+        }
 
         // SQL 查询语句模板列表。可以包含一个或多个SQL语句。
         // 使用占位符表示参数 (例如: "SELECT * FROM Users WHERE UserID = @UserID AND IsActive = @IsActive")
@@ -25,14 +44,22 @@ namespace QueryX.Models // 确保命名空间正确
         /// List of DatabaseConnectionInfo Ids that this query is intended for or compatible with.
         /// If empty, it might imply compatibility with any/all or a default connection.
         /// </summary>
-        public List<Guid> TargetConnectionIds { get; set; } = new List<Guid>();
+        public List<Guid> TargetConnectionIds 
+        { 
+            get => _targetConnectionIds;
+            set => SetProperty(ref _targetConnectionIds, value);
+        }
 
         // 此查询所需参数的定义列表
         public ObservableCollection<ParameterDefinition> Parameters { get; set; } = new ObservableCollection<ParameterDefinition>();
 
         // Represents the folder path for organizing queries, e.g., "Category/SubCategory".
         // If null or empty, the query is at the root level.
-        public string? FolderPath { get; set; }
+        public string? FolderPath 
+        { 
+            get => _folderPath;
+            set => SetProperty(ref _folderPath, value);
+        }
 
         public override string ToString()
         {

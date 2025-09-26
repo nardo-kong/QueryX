@@ -26,9 +26,24 @@ namespace QueryX.ViewModels
             {
                 if (_selectedQueryInList != value)
                 {
-                    // Before changing selection, prompt to save if there are pending changes to EditingQueryCopy
-                    // For simplicity, we'll skip prompting for now, changes are lost if not saved.
-                    // A "IsDirty" flag on EditingQueryCopy would be useful here.
+                    // Check for unsaved changes before switching selection
+                    if (IsDirty)
+                    {
+                        var result = DialogHelper.ShowSaveConfirmation("query", EditingQueryCopy?.Name);
+                        switch (result)
+                        {
+                            case MessageBoxResult.Yes:
+                                if (SaveQueryCommand.CanExecute(null))
+                                {
+                                    SaveQueryCommand.Execute(null);
+                                }
+                                break;
+                            case MessageBoxResult.Cancel:
+                                return; // Cancel the selection change
+                            case MessageBoxResult.No:
+                                break; // Continue without saving
+                        }
+                    }
 
                     SetProperty(ref _selectedQueryInList, value);
                     _isNewQueryMode = false; // Reset new query mode
@@ -260,10 +275,114 @@ namespace QueryX.ViewModels
                 TargetConnectionIds = new List<Guid>(queryToEdit.TargetConnectionIds)
             };
             _isNewQueryMode = false;
+            
+            // Subscribe to property changes for dirty tracking
+            SubscribeToEditingQueryChanges();
+            ResetDirtyState(); // Reset dirty state after loading
+        }
+
+        private void SubscribeToEditingQueryChanges()
+        {
+            if (EditingQueryCopy == null) return;
+
+            // Track changes to the QueryDefinition properties (Name, Description, FolderPath, etc.)
+            EditingQueryCopy.PropertyChanged += (s, e) => 
+            {
+                // Track changes to all properties of QueryDefinition
+                SetDirtyState();
+            };
+
+            // Track changes to collections by subscribing to collection changed events
+            EditingQueryCopy.SqlTemplates.CollectionChanged += (s, e) => 
+            {
+                SetDirtyState();
+                
+                // Subscribe to new items when they're added
+                if (e.NewItems != null)
+                {
+                    foreach (SqlTemplateEditable newTemplate in e.NewItems)
+                    {
+                        SubscribeToSqlTemplateChanges(newTemplate);
+                    }
+                }
+            };
+            
+            EditingQueryCopy.Parameters.CollectionChanged += (s, e) => 
+            {
+                SetDirtyState();
+                
+                // Subscribe to new items when they're added
+                if (e.NewItems != null)
+                {
+                    foreach (ParameterDefinition newParam in e.NewItems)
+                    {
+                        SubscribeToParameterChanges(newParam);
+                    }
+                }
+            };
+
+            // Track changes to existing SqlTemplate content
+            foreach (var sqlTemplate in EditingQueryCopy.SqlTemplates)
+            {
+                SubscribeToSqlTemplateChanges(sqlTemplate);
+            }
+
+            // Track changes to existing Parameter properties
+            foreach (var parameter in EditingQueryCopy.Parameters)
+            {
+                SubscribeToParameterChanges(parameter);
+            }
+
+            // Track changes to connection selections
+            foreach (var selectableConn in AvailableConnectionsForTargeting)
+            {
+                selectableConn.PropertyChanged += (s, e) => 
+                {
+                    if (e.PropertyName == nameof(SelectableConnectionViewModel.IsSelected))
+                    {
+                        SetDirtyState();
+                    }
+                };
+            }
+        }
+
+        private void SubscribeToSqlTemplateChanges(SqlTemplateEditable sqlTemplate)
+        {
+            sqlTemplate.PropertyChanged += (s, e) => 
+            {
+                if (e.PropertyName == nameof(SqlTemplateEditable.SqlText))
+                {
+                    SetDirtyState();
+                }
+            };
+        }
+
+        private void SubscribeToParameterChanges(ParameterDefinition parameter)
+        {
+            parameter.PropertyChanged += (s, e) => SetDirtyState();
         }
 
         private void ExecuteAddNewQuery(object? parameter)
         {
+            // Check for unsaved changes before creating new query
+            if (IsDirty)
+            {
+                var result = DialogHelper.ShowSaveConfirmation("query", EditingQueryCopy?.Name);
+                switch (result)
+                {
+                    case MessageBoxResult.Yes:
+                        if (SaveQueryCommand.CanExecute(null))
+                        {
+                            SaveQueryCommand.Execute(null);
+                        }
+                        break;
+                    case MessageBoxResult.Cancel:
+                        return; // Cancel the new query creation
+                    case MessageBoxResult.No:
+                        break; // Continue without saving
+                }
+            }
+
             var newQuery = new QueryDefinition
             {
                 Id = Guid.NewGuid(),
@@ -283,6 +402,10 @@ namespace QueryX.ViewModels
             SelectedQueryInList = null; // Deselect from the main list as we're editing a new, unsaved one
             StatusMessage = "Editing new query. Click Save to add it to the list.";
             ((RelayCommand)DeleteSelectedQueryCommand).RaiseCanExecuteChanged();
+            
+            // Subscribe to changes and set dirty state for new query
+            SubscribeToEditingQueryChanges();
+            SetDirtyState();
         }
         private void ExecuteDeleteSelectedQuery(object? parameter)
         {
@@ -328,6 +451,7 @@ namespace QueryX.ViewModels
                 SelectedQueryInList = EditingQueryCopy; // Select it in the main list
                 _isNewQueryMode = false;
                 StatusMessage = $"Query '{EditingQueryCopy.Name}' added and saved.";
+                ResetDirtyState(); // Reset dirty state after successful save
             }
             else if (SelectedQueryInList != null) // Saving changes to an existing query
             {
@@ -348,8 +472,7 @@ namespace QueryX.ViewModels
                 }));
                 SelectedQueryInList.TargetConnectionIds = new List<Guid>(EditingQueryCopy.TargetConnectionIds);
                 StatusMessage = $"Query '{SelectedQueryInList.Name}' saved.";
-                // Force refresh of the ListBox item if DisplayMemberPath doesn't pick up Name change on its own
-                // This can be done by temporarily removing and re-adding, or using a more complex refresh mechanism
+                ResetDirtyState(); // Reset dirty state after successful save
                 // For ObservableCollection, changing a property of an item should reflect if the item implements INPC.
                 // If QueryDefinition implemented INPC, this would be automatic.
                 // For now, let's hope direct property change is enough for DisplayMemberPath="Name".
@@ -363,6 +486,7 @@ namespace QueryX.ViewModels
                 EditingQueryCopy = null; // Just clear the form
                 _isNewQueryMode = false;
                 StatusMessage = "New query cancelled.";
+                ResetDirtyState();
             }
             else if (SelectedQueryInList != null) // Reverting an existing query
             {
@@ -377,6 +501,7 @@ namespace QueryX.ViewModels
             {
                 EditingQueryCopy.SqlTemplates.Add(new SqlTemplateEditable("-- New SQL Statement --"));
                 StatusMessage = "Added SQL template.";
+                SetDirtyState();
             }
         }
         private void ExecuteRemoveLastSqlTemplate(object? parameter)
@@ -385,6 +510,7 @@ namespace QueryX.ViewModels
             {
                 EditingQueryCopy.SqlTemplates.RemoveAt(EditingQueryCopy.SqlTemplates.Count - 1);
                 StatusMessage = "Removed last SQL template.";
+                SetDirtyState();
             }
         }
 
@@ -396,6 +522,7 @@ namespace QueryX.ViewModels
                 EditingQueryCopy.Parameters.Add(newParam);
                 SelectedParameterForEditing = newParam;
                 StatusMessage = "Added parameter.";
+                SetDirtyState();
             }
         }
         private void ExecuteRemoveSelectedParameter(object? parameter)
@@ -405,6 +532,7 @@ namespace QueryX.ViewModels
                 EditingQueryCopy.Parameters.Remove(SelectedParameterForEditing);
                 SelectedParameterForEditing = null;
                 StatusMessage = "Removed parameter.";
+                SetDirtyState();
             }
         }
 
@@ -462,8 +590,30 @@ namespace QueryX.ViewModels
         
         private void ExecuteCloseWindow(Window? window)
         {
-            // Prompt to save if dirty (future enhancement)
-            window?.Close();
+            // Check for unsaved changes before closing
+            if (IsDirty)
+            {
+                var result = DialogHelper.ShowCloseConfirmation("query", EditingQueryCopy?.Name);
+                switch (result)
+                {
+                    case MessageBoxResult.Yes:
+                        if (SaveQueryCommand.CanExecute(null))
+                        {
+                            SaveQueryCommand.Execute(null);
+                            window?.Close();
+                        }
+                        break;
+                    case MessageBoxResult.No:
+                        window?.Close();
+                        break;
+                    case MessageBoxResult.Cancel:
+                        return; // Don't close the window
+                }
+            }
+            else
+            {
+                window?.Close();
+            }
         }
 
     }

@@ -9,6 +9,7 @@ using System.Windows.Input;
 using System.Threading.Tasks;
 using System.Diagnostics; // For async Task
 using System.Security.Cryptography;
+using System.Windows; // For MessageBox
 
 namespace QueryX.ViewModels
 {
@@ -34,6 +35,25 @@ namespace QueryX.ViewModels
             {
                 if (SetProperty(ref _selectedConnection, value))
                 {
+                    // Check for unsaved changes before changing selection
+                    if (IsDirty && CurrentEditConnection != null)
+                    {
+                        var result = DialogHelper.ShowSaveConfirmation("connection", CurrentEditConnection.ConnectionName);
+                        switch (result)
+                        {
+                            case MessageBoxResult.Yes:
+                                if (SaveCommand.CanExecute(null))
+                                {
+                                    SaveCommand.Execute(null);
+                                }
+                                break;
+                            case MessageBoxResult.Cancel:
+                                return; // Cancel the selection change
+                            case MessageBoxResult.No:
+                                break; // Continue without saving
+                        }
+                    }
+
                     // When selection changes, trigger edit (or view details)
                     if (value != null)
                     {
@@ -101,6 +121,7 @@ namespace QueryX.ViewModels
                 {
                     CurrentEditConnection.ConnectionName = value;
                     OnPropertyChanged(); // Notify UI this property changed
+                    SetDirtyState(); // Mark as dirty when value changes
                 }
             }
         }
@@ -117,6 +138,7 @@ namespace QueryX.ViewModels
                 {
                     CurrentEditConnection.DbType = value;
                     OnPropertyChanged();
+                    SetDirtyState();
                 }
             }
         }
@@ -130,6 +152,7 @@ namespace QueryX.ViewModels
                 {
                     CurrentEditConnection.Server = value;
                     OnPropertyChanged();
+                    SetDirtyState();
                 }
             }
         }
@@ -143,6 +166,7 @@ namespace QueryX.ViewModels
                 {
                     CurrentEditConnection.DatabaseName = value;
                     OnPropertyChanged();
+                    SetDirtyState();
                 }
             }
         }
@@ -156,6 +180,7 @@ namespace QueryX.ViewModels
                 {
                     CurrentEditConnection.UseWindowsAuth = value;
                     OnPropertyChanged();
+                    SetDirtyState();
                     // When UseWindowsAuth changes, also notify that IsEnabled state for User/Pass might change
                     OnPropertyChanged(nameof(UserName));
                     // Password needs update too
@@ -172,6 +197,7 @@ namespace QueryX.ViewModels
                 {
                     CurrentEditConnection.UserName = value;
                     OnPropertyChanged();
+                    SetDirtyState();
                 }
             }
         }
@@ -188,6 +214,7 @@ namespace QueryX.ViewModels
         public ICommand SaveCommand { get; }
         public ICommand CancelEditCommand { get; }
         public ICommand TestCommand { get; }
+        public ICommand CloseWindowCommand { get; }
 
         // Add a public property for IsBusy
         public bool IsBusy
@@ -213,6 +240,7 @@ namespace QueryX.ViewModels
             SaveCommand = new RelayCommand(ExecuteSave, CanExecuteSave);
             CancelEditCommand = new RelayCommand(ExecuteCancelEdit);
             TestCommand = new RelayCommand(async (p) => await ExecuteTestConnectionAsync(p), CanExecuteTestConnection); // Async command
+            CloseWindowCommand = new RelayCommand(ExecuteCloseWindow, p => p is Window);
 
             // Initial state: No item selected, form disabled
             IsEditing = false;
@@ -223,11 +251,31 @@ namespace QueryX.ViewModels
 
         private void ExecuteAdd(object? parameter)
         {
+            // Check for unsaved changes before creating new connection
+            if (IsDirty && CurrentEditConnection != null)
+            {
+                var result = DialogHelper.ShowSaveConfirmation("connection", CurrentEditConnection.ConnectionName);
+                switch (result)
+                {
+                    case MessageBoxResult.Yes:
+                        if (SaveCommand.CanExecute(null))
+                        {
+                            SaveCommand.Execute(null);
+                        }
+                        break;
+                    case MessageBoxResult.Cancel:
+                        return; // Cancel the new connection creation
+                    case MessageBoxResult.No:
+                        break; // Continue without saving
+                }
+            }
+
             StatusMessage = string.Empty;
             // Create a new blank connection object for editing
             CurrentEditConnection = new DatabaseConnectionInfo { Id = Guid.NewGuid(), ConnectionName = "New Connection" };
             IsEditing = true; // Enable the form
             SelectedConnection = null; // Deselect any item in the list
+            SetDirtyState(); // Mark as dirty since we're starting with a new connection
         }
 
         private bool CanExecuteEdit(object? parameter) => parameter is DatabaseConnectionInfo;
@@ -251,6 +299,7 @@ namespace QueryX.ViewModels
                     EncryptedPassword = connectionToEdit.EncryptedPassword, // Copy encrypted password
                 };
                 IsEditing = true;
+                ResetDirtyState(); // Reset dirty state when starting to edit
             }
         }
 
@@ -352,6 +401,7 @@ namespace QueryX.ViewModels
             StatusMessage = $"Connection change saved.";
             CurrentEditConnection = null; // Clear the form, disable editing
             IsEditing = false;
+            ResetDirtyState(); // Reset dirty state after successful save
         }
 
 
@@ -360,6 +410,7 @@ namespace QueryX.ViewModels
             CurrentEditConnection = null; // Clear the form
             IsEditing = false;
             StatusMessage = "Edit cancelled.";
+            ResetDirtyState(); // Reset dirty state when cancelling
         }
 
 
@@ -429,6 +480,36 @@ namespace QueryX.ViewModels
             // Optionally show a MessageBox as well
             // MessageBox.Show(message, "Connection Test Result", MessageBoxButton.OK,
             //                 isSuccess ? MessageBoxImage.Information : MessageBoxImage.Error);
+        }
+
+        private void ExecuteCloseWindow(object? parameter)
+        {
+            if (parameter is not Window window) return;
+
+            // Check for unsaved changes before closing
+            if (IsDirty && CurrentEditConnection != null)
+            {
+                var result = DialogHelper.ShowCloseConfirmation("connection", CurrentEditConnection.ConnectionName);
+                switch (result)
+                {
+                    case MessageBoxResult.Yes:
+                        if (SaveCommand.CanExecute(null))
+                        {
+                            SaveCommand.Execute(null);
+                            window.Close();
+                        }
+                        break;
+                    case MessageBoxResult.No:
+                        window.Close();
+                        break;
+                    case MessageBoxResult.Cancel:
+                        return; // Don't close the window
+                }
+            }
+            else
+            {
+                window.Close();
+            }
         }
     }
 }
