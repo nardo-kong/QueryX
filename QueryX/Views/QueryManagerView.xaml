@@ -13,16 +13,16 @@
         WindowStartupLocation="CenterOwner"
         d:DataContext="{d:DesignInstance Type=vm:QueryManagerViewModel, IsDesignTimeCreatable=False}">
     
+    <Window.Resources>
+        <conv:NullToFalseConverter x:Key="NullToFalseConverter" />
+        <conv:BooleanToAsteriskConverter x:Key="BooleanToAsteriskConverter" />
+    </Window.Resources>
+    
     <Window.Title>
         <MultiBinding StringFormat="Query Manager{0}">
             <Binding Path="IsDirty" Converter="{StaticResource BooleanToAsteriskConverter}" />
         </MultiBinding>
     </Window.Title>
-
-    <Window.Resources>
-        <conv:NullToFalseConverter x:Key="NullToFalseConverter" />
-        <conv:BooleanToAsteriskConverter x:Key="BooleanToAsteriskConverter" />
-    </Window.Resources>
 
     <Grid Margin="15">
         <Grid.ColumnDefinitions>

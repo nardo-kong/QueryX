@@ -285,9 +285,53 @@ namespace QueryX.ViewModels
         {
             if (EditingQueryCopy == null) return;
 
+            // Track changes to the QueryDefinition properties (Name, Description, FolderPath, etc.)
+            EditingQueryCopy.PropertyChanged += (s, e) => 
+            {
+                // Track changes to all properties of QueryDefinition
+                SetDirtyState();
+            };
+
             // Track changes to collections by subscribing to collection changed events
-            EditingQueryCopy.SqlTemplates.CollectionChanged += (s, e) => SetDirtyState();
-            EditingQueryCopy.Parameters.CollectionChanged += (s, e) => SetDirtyState();
+            EditingQueryCopy.SqlTemplates.CollectionChanged += (s, e) => 
+            {
+                SetDirtyState();
+                
+                // Subscribe to new items when they're added
+                if (e.NewItems != null)
+                {
+                    foreach (SqlTemplateEditable newTemplate in e.NewItems)
+                    {
+                        SubscribeToSqlTemplateChanges(newTemplate);
+                    }
+                }
+            };
+            
+            EditingQueryCopy.Parameters.CollectionChanged += (s, e) => 
+            {
+                SetDirtyState();
+                
+                // Subscribe to new items when they're added
+                if (e.NewItems != null)
+                {
+                    foreach (ParameterDefinition newParam in e.NewItems)
+                    {
+                        SubscribeToParameterChanges(newParam);
+                    }
+                }
+            };
+
+            // Track changes to existing SqlTemplate content
+            foreach (var sqlTemplate in EditingQueryCopy.SqlTemplates)
+            {
+                SubscribeToSqlTemplateChanges(sqlTemplate);
+            }
+
+            // Track changes to existing Parameter properties
+            foreach (var parameter in EditingQueryCopy.Parameters)
+            {
+                SubscribeToParameterChanges(parameter);
+            }
 
             // Track changes to connection selections
             foreach (var selectableConn in AvailableConnectionsForTargeting)
@@ -300,12 +344,22 @@ namespace QueryX.ViewModels
                     }
                 };
             }
+        }
 
-            // Note: For complete tracking, we would also need to track changes to string properties
-            // like Name, Description, etc. However, since these are typically bound directly to UI controls,
-            // and we don't have INotifyPropertyChanged on QueryDefinition itself, we'll rely on
-            // user actions (like typing in TextBoxes) to trigger dirty state through UI event handlers
-            // or implement a more sophisticated property change tracking system.
+        private void SubscribeToSqlTemplateChanges(SqlTemplateEditable sqlTemplate)
+        {
+            sqlTemplate.PropertyChanged += (s, e) => 
+            {
+                if (e.PropertyName == nameof(SqlTemplateEditable.SqlText))
+                {
+                    SetDirtyState();
+                }
+            };
+        }
+
+        private void SubscribeToParameterChanges(ParameterDefinition parameter)
+        {
+            parameter.PropertyChanged += (s, e) => SetDirtyState();
         }
 
         private void ExecuteAddNewQuery(object? parameter)
