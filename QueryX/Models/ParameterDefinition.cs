@@ -15,6 +15,26 @@ namespace QueryX.Models // 确保命名空间正确
         List // 可以后续添加对下拉列表的支持
     }
 
+    // Represents an option for a List parameter with separate value and display text
+    public class ListOption
+    {
+        public string Value { get; set; } = string.Empty;
+        public string DisplayText { get; set; } = string.Empty;
+
+        public ListOption() { }
+
+        public ListOption(string value, string displayText)
+        {
+            Value = value;
+            DisplayText = displayText;
+        }
+
+        // Constructor for when value and display are the same
+        public ListOption(string valueAndDisplay) : this(valueAndDisplay, valueAndDisplay) { }
+
+        public override string ToString() => DisplayText;
+    }
+
     public class ParameterDefinition: ViewModelBase // 继承自 ViewModelBase 以支持 INotifyPropertyChanged
     {
         // SQL 模板中使用的占位符名称 (例如: @UserID, :startDate)
@@ -65,9 +85,42 @@ namespace QueryX.Models // 确保命名空间正确
             set => SetProperty(ref _tooltip, value);
         }
 
-        // （未来扩展）用于下拉列表类型参数的选项来源
-        // 可以是固定的值列表字符串，或是一个用于获取选项的SQL查询
-        // public string? ListOptionsSource { get; set; }
+        // Advanced parameter sourcing for lists
+        // When set, this SQL query will be executed to populate the list options
+        private string? _listOptionsSourceQuery;
+        public string? ListOptionsSourceQuery
+        {
+            get => _listOptionsSourceQuery;
+            set => SetProperty(ref _listOptionsSourceQuery, value);
+        }
+
+        // Connection ID to use for executing the ListOptionsSourceQuery
+        private Guid? _listOptionsConnectionId;
+        public Guid? ListOptionsConnectionId
+        {
+            get => _listOptionsConnectionId;
+            set => SetProperty(ref _listOptionsConnectionId, value);
+        }
+
+        // Column names for value and display text (e.g., "CustomerID", "CustomerName")
+        // If only ValueColumn is specified, it will be used for both value and display
+        private string? _listOptionsValueColumn;
+        public string? ListOptionsValueColumn
+        {
+            get => _listOptionsValueColumn;
+            set => SetProperty(ref _listOptionsValueColumn, value);
+        }
+
+        private string? _listOptionsDisplayColumn;
+        public string? ListOptionsDisplayColumn
+        {
+            get => _listOptionsDisplayColumn;
+            set => SetProperty(ref _listOptionsDisplayColumn, value);
+        }
+
+        // Indicates whether this parameter uses SQL query for options (true) or static options (false)
+        [JsonIgnore]
+        public bool UsesSqlForOptions => !string.IsNullOrWhiteSpace(ListOptionsSourceQuery);
 
 
         // For DataType = List, this holds the predefined string options.
@@ -76,6 +129,15 @@ namespace QueryX.Models // 确保命名空间正确
         { 
             get => _valueListOptions;
             set => SetProperty(ref _valueListOptions, value);
+        }
+
+        // Dynamically loaded list options from SQL query
+        private List<ListOption>? _loadedListOptions;
+        [JsonIgnore]
+        public List<ListOption>? LoadedListOptions
+        {
+            get => _loadedListOptions;
+            set => SetProperty(ref _loadedListOptions, value);
         }
 
         // Helper property for easy binding in the Query Manager's DataGrid.

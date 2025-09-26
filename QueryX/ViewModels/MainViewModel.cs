@@ -22,6 +22,7 @@ namespace QueryX.ViewModels // Ensure namespace matches your project
         private readonly ExportService _exportService;
         private readonly EncryptionService _encryptionService;
         private readonly SqlValidationService _sqlValidationService;
+        private readonly ParameterOptionsService _parameterOptionsService;
 
         private AppConfiguration _appConfig; // Holds the loaded config data
 
@@ -105,6 +106,7 @@ namespace QueryX.ViewModels // Ensure namespace matches your project
             _queryExecutor = new QueryExecutor(_databaseService, _sqlParser, _encryptionService); // <-- Instantiate QueryExecutor
             _exportService = new ExportService();
             _sqlValidationService = new SqlValidationService(_databaseService);
+            _parameterOptionsService = new ParameterOptionsService(_databaseService, _encryptionService);
 
             _appConfig = new AppConfiguration(); // Start with empty config
 
@@ -231,7 +233,7 @@ namespace QueryX.ViewModels // Ensure namespace matches your project
             // Pass the shared Queries collection and SqlParser (optional)
             var queryManagerViewModel = new QueryManagerViewModel(
                 this.AllFlatQueries, this.Connections, _databaseService, _sqlValidationService,
-                _encryptionService /*, _sqlParser */);
+                _encryptionService, _parameterOptionsService);
 
             var queryManagerView = new QueryManagerView
             {
@@ -404,7 +406,8 @@ namespace QueryX.ViewModels // Ensure namespace matches your project
                         _queryExecutor,
                         _exportService,
                         _databaseService,  // Pass DatabaseService for "Test Connection" in QueryExecutionViewModel
-                        _encryptionService
+                        _encryptionService,
+                        _parameterOptionsService
                         );
                 }
                 else
