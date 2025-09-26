@@ -15,54 +15,52 @@ namespace QueryX.Models // 确保命名空间正确
         List // 可以后续添加对下拉列表的支持
     }
 
-    public class ParameterDefinition : ViewModelBase
+    public class ParameterDefinition: ViewModelBase // 继承自 ViewModelBase 以支持 INotifyPropertyChanged
     {
-        private string _placeholderName = string.Empty;
-        private string _displayName = string.Empty;
-        private ParameterDataType _dataType = ParameterDataType.String;
-        private bool _isRequired = true;
-        private object? _defaultValue;
-        private string? _tooltip;
-        private List<string>? _valueListOptions = new List<string>();
-
         // SQL 模板中使用的占位符名称 (例如: @UserID, :startDate)
-        public string PlaceholderName 
-        { 
+        private string _placeholderName = string.Empty;
+        public string PlaceholderName
+        {
             get => _placeholderName;
             set => SetProperty(ref _placeholderName, value);
         }
 
         // 在 UI 中显示的友好名称 (例如: "用户ID", "开始日期")
-        public string DisplayName 
-        { 
+        private string _displayName = string.Empty;
+        public string DisplayName
+        {
             get => _displayName;
             set => SetProperty(ref _displayName, value);
         }
 
         // 参数的数据类型，用于 UI 生成和验证
-        public ParameterDataType DataType 
-        { 
+        private ParameterDataType _dataType = ParameterDataType.String;
+        public ParameterDataType DataType
+        {
             get => _dataType;
             set => SetProperty(ref _dataType, value);
         }
 
         // 该参数是否为必填项
-        public bool IsRequired 
-        { 
+        private bool _isRequired = true;
+        public bool IsRequired
+        {
             get => _isRequired;
             set => SetProperty(ref _isRequired, value);
         }
 
         // 参数的默认值 (可以是 null)
-        public object? DefaultValue 
-        { 
+        private object? _defaultValue;
+        public object? DefaultValue
+        {
             get => _defaultValue;
             set => SetProperty(ref _defaultValue, value);
         }
 
         // 在 UI 中显示的提示信息 (Tooltip)
-        public string? Tooltip 
-        { 
+        private string? _tooltip;
+        public string? Tooltip
+        {
             get => _tooltip;
             set => SetProperty(ref _tooltip, value);
         }
@@ -73,6 +71,19 @@ namespace QueryX.Models // 确保命名空间正确
 
 
         // For DataType = List, this holds the predefined string options.
+        private List<string>? _valueListOptions = new List<string>();
+        public List<string>? ValueListOptions
+        {
+            get => _valueListOptions;
+            set
+            {
+                 if (SetProperty(ref _valueListOptions, value))
+                {
+                    // Notify that the string representation has changed when options are set
+                    OnPropertyChanged(nameof(ValueListOptionsString));
+                }
+            }
+        }
         public List<string>? ValueListOptions 
         { 
             get => _valueListOptions;
