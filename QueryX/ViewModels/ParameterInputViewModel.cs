@@ -19,10 +19,22 @@ namespace QueryX.ViewModels // Ensure namespace matches
             get => _value;
             set
             {
+                // Handle ListOption objects - extract the Value property
+                if (value is ListOption listOption)
+                {
+                    value = listOption.Value;
+                }
+                
                 if (SetProperty(ref _value, value))
                 {
                     // Re-validate whenever the value changes
                     IsValid(out _);
+                    
+                    // Notify display text change for List parameters
+                    if (Definition.DataType == ParameterDataType.List)
+                    {
+                        OnPropertyChanged(nameof(CurrentValueDisplayText));
+                    }
                 }
             }
         }
@@ -66,6 +78,34 @@ namespace QueryX.ViewModels // Ensure namespace matches
         {
             get => _optionLoadingError;
             set => SetProperty(ref _optionLoadingError, value);
+        }
+
+        // Gets the display text for the current value (useful for List parameters)
+        [JsonIgnore]
+        public string CurrentValueDisplayText
+        {
+            get
+            {
+                if (Definition.DataType == ParameterDataType.List && _value != null)
+                {
+                    string valueStr = _value.ToString() ?? "";
+                    
+                    // Try to find matching option to get display text
+                    if (Definition.UsesSqlForOptions && Definition.LoadedListOptions != null)
+                    {
+                        var matchingOption = Definition.LoadedListOptions
+                            .FirstOrDefault(opt => string.Equals(opt.Value, valueStr, StringComparison.OrdinalIgnoreCase));
+                        return matchingOption?.DisplayText ?? valueStr;
+                    }
+                    else if (Definition.ValueListOptions != null)
+                    {
+                        // For static options, value and display are the same
+                        return Definition.ValueListOptions.Contains(valueStr) ? valueStr : valueStr;
+                    }
+                }
+                
+                return _value?.ToString() ?? "";
+            }
         }
 
         public string? ErrorMessage
@@ -178,11 +218,16 @@ namespace QueryX.ViewModels // Ensure namespace matches
                 // Notify that options have changed
                 OnPropertyChanged(nameof(AllOptionsForList));
                 OnPropertyChanged(nameof(DynamicOptionsForList));
+                OnPropertyChanged(nameof(CurrentValueDisplayText));
             }
             catch (Exception ex)
             {
                 OptionLoadingError = $"Failed to load options: {ex.Message}";
                 Definition.LoadedListOptions = new List<ListOption>();
+                
+                // Still notify that options changed (now empty)
+                OnPropertyChanged(nameof(AllOptionsForList));
+                OnPropertyChanged(nameof(DynamicOptionsForList));
             }
             finally
             {
