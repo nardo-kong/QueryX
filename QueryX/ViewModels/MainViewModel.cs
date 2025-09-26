@@ -406,7 +406,8 @@ namespace QueryX.ViewModels // Ensure namespace matches your project
                         _queryExecutor,
                         _exportService,
                         _databaseService,  // Pass DatabaseService for "Test Connection" in QueryExecutionViewModel
-                        _encryptionService
+                        _encryptionService,
+                        _parameterOptionsService
                         );
                 }
                 else

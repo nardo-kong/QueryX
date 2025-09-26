@@ -22,6 +22,7 @@ namespace QueryX.ViewModels // Ensure namespace matches
         private readonly ExportService _exportService;
         private readonly DatabaseService _databaseService;
         private readonly EncryptionService _encryptionService;
+        private readonly ParameterOptionsService _parameterOptionsService;
 
         private CancellationTokenSource? _cancellationTokenSource; // To allow cancellation
 
@@ -40,6 +41,8 @@ namespace QueryX.ViewModels // Ensure namespace matches
                     if (value != null)
                     {
                         StatusMessage = $"Using '{value.ConnectionName}'. Parameters loaded.";
+                        // Reload parameters to fetch dynamic options with the new connection
+                        LoadParameters();
                     }
                     else if (AvailableConnectionsForExecution.Any())
                     {
@@ -128,7 +131,7 @@ namespace QueryX.ViewModels // Ensure namespace matches
             IEnumerable<DatabaseConnectionInfo> availableConnections, 
             DatabaseConnectionInfo? initialConnection, QueryExecutor queryExecutor, 
             ExportService exportService, DatabaseService databaseService,
-            EncryptionService encryptionService)
+            EncryptionService encryptionService, ParameterOptionsService parameterOptionsService)
         {
             _queryDefinition = queryDefinition ?? throw new ArgumentNullException(nameof(queryDefinition));
             //_connectionInfo = connectionInfo ?? throw new ArgumentNullException(nameof(connectionInfo));
@@ -136,6 +139,7 @@ namespace QueryX.ViewModels // Ensure namespace matches
             _exportService = exportService ?? throw new ArgumentNullException(nameof(exportService));
             _databaseService = databaseService ?? throw new ArgumentNullException(nameof(databaseService));
             _encryptionService = encryptionService ?? throw new ArgumentNullException(nameof(encryptionService));
+            _parameterOptionsService = parameterOptionsService ?? throw new ArgumentNullException(nameof(parameterOptionsService));
 
             ExecuteQueryCommand = new RelayCommand(async (p) => await ExecuteQueryAsync(), CanExecuteQuery);
             CancelQueryCommand = new RelayCommand(ExecuteCancelQuery, CanCancelQuery);
@@ -163,12 +167,28 @@ namespace QueryX.ViewModels // Ensure namespace matches
         }
 
         // Populates the Parameters collection based on the QueryDefinition
-        private void LoadParameters()
+        private async void LoadParameters()
         {
             Parameters.Clear();
             foreach (var paramDef in _queryDefinition.Parameters.OrderBy(p => p.DisplayName)) // Order alphabetically for UI
             {
-                Parameters.Add(new ParameterInputViewModel(paramDef));
+                var paramInputVM = new ParameterInputViewModel(paramDef);
+                
+                // Load dynamic options for List parameters if a connection is available
+                if (paramDef.DataType == ParameterDataType.List && paramDef.UsesSqlForOptions && SelectedConnectionForExecution != null)
+                {
+                    try
+                    {
+                        await paramInputVM.LoadDynamicOptionsAsync(_parameterOptionsService, SelectedConnectionForExecution);
+                    }
+                    catch (Exception ex)
+                    {
+                        // Log error but continue with static options or empty list
+                        StatusMessage = $"Warning: Failed to load options for {paramDef.DisplayName}: {ex.Message}";
+                    }
+                }
+                
+                Parameters.Add(paramInputVM);
             }
         }
 

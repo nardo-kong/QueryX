@@ -94,7 +94,7 @@
                     <Run Text="{Binding Definition.IsRequired, Converter={StaticResource RequiredToStarConverter}}" Foreground="Red"/>
                     <Run Text=":"/>
                 </TextBlock>
-                <ComboBox ItemsSource="{Binding OptionsForList}"
+                <ComboBox ItemsSource="{Binding AllOptionsForList}"
                       SelectedItem="{Binding Value, Mode=TwoWay}"
                       Margin="0,2,0,0"/>
                 <TextBlock Text="{Binding ErrorMessage}" Foreground="Red" FontSize="10" Margin="2,2,0,0" Visibility="{Binding ErrorMessage, Converter={StaticResource NullToVisibilityConverter}}"/>
